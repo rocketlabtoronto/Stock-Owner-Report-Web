@@ -17,7 +17,10 @@ serve(async (req) => {
     "Content-Type": "application/json",
   };
 
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    db: { schema: "dashboard" },
+    auth: { persistSession: false },
+  });
 
   const redact = (value: unknown) => {
     if (!value) return "missing";

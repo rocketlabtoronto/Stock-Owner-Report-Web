@@ -3,7 +3,6 @@
 // and for each account, fetches holdings and account details. Returns a combined data model.
 // Import Deno HTTP server, Supabase client (not used here, but available), and SnapTrade SDK
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 
 serve(async (req) => {

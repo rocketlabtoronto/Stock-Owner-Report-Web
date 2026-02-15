@@ -112,7 +112,10 @@ serve(async (req) => {
 
   // DB client (service role).
   // Service role is required to update the users table.
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    db: { schema: "dashboard" },
+    auth: { persistSession: false },
+  });
 
   // Register user + persist secret.
   try {

@@ -1,11 +1,3 @@
-// Directory structure:
-// supabase/functions/
-// ├── get-users/index.ts
-// ├── register-user/index.ts
-// ├── delete-user/index.ts
-// └── login-user/index.ts
-
-// ----- FILE: supabase/functions/get-users/index.ts -----
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 
