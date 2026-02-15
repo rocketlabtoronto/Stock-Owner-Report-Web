@@ -1,0 +1,30 @@
+// Custom Dashboard 2 MUI Base Styles
+import colors from "assets/theme/base/colors";
+import borders from "assets/theme/base/borders";
+import boxShadows from "assets/theme/base/boxShadows";
+
+// Custom Dashboard 2 MUI Helper Function
+import rgba from "assets/theme/functions/rgba";
+
+const { black, white } = colors;
+const { borderWidth, borderRadius } = borders;
+const { cardBoxShadow } = boxShadows;
+
+const card = {
+  styleOverrides: {
+    root: {
+      display: "flex",
+      flexDirection: "column",
+      position: "relative",
+      minWidth: 0,
+      wordWrap: "break-word",
+      backgroundColor: white.main,
+      backgroundClip: "border-box",
+      border: `${borderWidth[0]} solid ${rgba(black.main, 0.06)}`,
+      borderRadius: borderRadius.xxl,
+      boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+    },
+  },
+};
+
+export default card;

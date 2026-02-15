@@ -1,0 +1,8 @@
+{
+  "short_name": "Look Through Profits",
+  "name": "Look Through Profits",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#11cdef",
+  "background_color": "#ffffff"
+}

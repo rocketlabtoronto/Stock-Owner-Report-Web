@@ -1,0 +1,21 @@
+[
+  {
+    "id": 1,
+    "name": "Fidelity",
+    "logo": "/logos/fidelity.jpg",
+    "accounts": [
+      { "id": 101, "type": "Cash", "number": "12345", "balance": 50000, "included": true },
+      { "id": 102, "type": "Margin", "number": "67890", "balance": 75000, "included": true },
+      { "id": 103, "type": "Retirement", "number": "24680", "balance": 100000, "included": false }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Charles Schwab",
+    "logo": "logos/charles.png",
+    "accounts": [
+      { "id": 201, "type": "Cash", "number": "11223", "balance": 45000, "included": true },
+      { "id": 202, "type": "IRA", "number": "44556", "balance": 60000, "included": false }
+    ]
+  }
+]
