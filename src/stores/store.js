@@ -12,6 +12,7 @@ const PERSISTED_KEYS = [
   "accounts",
   "snapTradeAccounts",
   "snapTradeHoldings",
+  "snapTradeLastConnectedAt",
 ];
 
 const normalizeLower = (value) =>
@@ -30,6 +31,7 @@ const createEmptyStoreData = () => ({
   brokeragesAndAccounts: [],
   snapTradeAccounts: [],
   snapTradeHoldings: [],
+  snapTradeLastConnectedAt: null,
 });
 const pickPersistedState = (state) =>
   Object.fromEntries(PERSISTED_KEYS.map((key) => [key, state[key]]));
@@ -178,9 +180,11 @@ export const useAppStore = create(
 
       snapTradeAccounts: [],
       snapTradeHoldings: [],
+      snapTradeLastConnectedAt: null,
       setSnapTradeAccounts: (accounts) =>
         set({ snapTradeAccounts: applyFakeEquitiesToAccounts(accounts) }),
       setSnapTradeHoldings: (holdings) => set({ snapTradeHoldings: holdings }),
+      setSnapTradeLastConnectedAt: (timestamp) => set({ snapTradeLastConnectedAt: timestamp }),
 
       clearData: () => set(createEmptyStoreData()),
 

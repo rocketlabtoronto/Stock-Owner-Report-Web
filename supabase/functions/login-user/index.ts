@@ -135,7 +135,7 @@ serve(async (req) => {
   }
 
   // === USERSECRET CHECK ===
-  // userSecret can be omitted from the request body; we will fetch it from Supabase.
+  // Workflow #3 provides userSecret directly from transient registration.
 
   // === ENV CHECK ===
   const fallbackRedirectUri =
@@ -155,27 +155,29 @@ serve(async (req) => {
     consumerKey: SNAPTRADE_CONSUMER_KEY,
   });
 
-  // === GET USER SECRET ===
-  const { data, error } = await supabase
-    .from("users")
-    .select("snapusersecret")
-    .eq("email", userId)
-    .single();
+  let secret = userSecret;
+  if (!secret) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("snapusersecret")
+      .eq("email", userId)
+      .single();
 
-  if (error || !data?.snapusersecret) {
-    await logWebhookError(
-      "login-user",
-      userId,
-      LoginUserStep.FETCH_USER_SECRET,
-      error?.message || "User secret not found"
-    );
-    return new Response(JSON.stringify({ error: "User secret not found" }), {
-      status: 404,
-      headers: corsHeaders,
-    });
+    if (error || !data?.snapusersecret) {
+      await logWebhookError(
+        "login-user",
+        userId,
+        LoginUserStep.FETCH_USER_SECRET,
+        error?.message || "User secret not found"
+      );
+      return new Response(JSON.stringify({ error: "User secret not found" }), {
+        status: 404,
+        headers: corsHeaders,
+      });
+    }
+
+    secret = data.snapusersecret;
   }
-
-  let secret = data.snapusersecret;
   // Validate all required fields for SnapTrade login
   if (!userId || !secret) {
     await logWebhookError(

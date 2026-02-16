@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Card,
 } from "@mui/material";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 
 import CustomTypography from "components/CustomTypography";
 import CustomBox from "components/CustomBox";
@@ -12,12 +10,47 @@ import ProRataTable from "../balanceSheet/ProRataTable";
 import useAggregatedIncomeStatement from "../incomeStatement/useAggregatedIncomeStatement";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
+import { useAuthStore } from "stores/useAuthStore";
+import { supabase } from "../../supabaseClient";
 
 function IncomeStatement() {
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const { loading, aggregatedData, allAccountsWithLogos } =
     useAggregatedIncomeStatement(selectedAccountId);
-  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSubscriptionStatus = async () => {
+      const email = user?.email;
+      if (!email) {
+        if (active) setIsSubscribed(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("users")
+        .select("is_subscribed")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (!active) return;
+      if (error) {
+        setIsSubscribed(false);
+        return;
+      }
+
+      setIsSubscribed(Boolean(data?.is_subscribed));
+    };
+
+    loadSubscriptionStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [user?.email]);
 
   // Auto-select first account when available
   useEffect(() => {
@@ -40,7 +73,8 @@ function IncomeStatement() {
           sx={{
             p: 3,
             background: "#fff",
-            overflow: "hidden",
+            overflowX: "hidden",
+            overflowY: "auto",
             borderRadius: 3,
             boxShadow: 3,
             width: "100%",
@@ -140,36 +174,12 @@ function IncomeStatement() {
             represents, just as if you personally owned that fraction of the entire business.
           </CustomTypography>
 
-          {!loading && (!hasAccounts || !hasRows) && (
-            <CustomBox mb={2}>
-              <CustomTypography variant="body2" color="text" sx={{ mb: 2 }}>
-                There isn&apos;t enough data to build your income statement yet. Connect a brokerage
-                or upload holdings to get started.
-              </CustomTypography>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => navigate("/brokeragesAndAccounts")}
-                sx={{ textTransform: "none" }}
-              >
-                Go to Brokerages & Accounts
-              </Button>
-            </CustomBox>
-          )}
-
-          {hasRows ? (
-            <ProRataTable
-              loading={loading}
-              data={aggregatedData}
-              height="calc(100vh - 420px)"
-            />
-          ) : (
-            !loading && (
-              <CustomTypography variant="body2" color="text" sx={{ mt: 2 }}>
-                No income statement rows to display yet.
-              </CustomTypography>
-            )
-          )}
+          <ProRataTable
+            loading={loading}
+            data={aggregatedData}
+            height="calc(100vh - 420px)"
+            paywall={{ enabled: hasRows, isSubscribed, registerPath: "/billing" }}
+          />
         </Card>
       </CustomBox>
     </DashboardLayout>

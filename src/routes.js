@@ -18,8 +18,6 @@ import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
 import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 
 import CustomBox from "components/CustomBox";
-import RequireAuth from "components/RequireAuth";
-import RequireBrokerageConnected from "components/RequireBrokerageConnected";
 
 const routes = [
   {
@@ -37,11 +35,7 @@ const routes = [
     key: "dashboard",
     route: "/brokeragesAndAccounts",
     icon: <AccountBalanceWalletOutlined style={{ fontSize: 20 }} />,
-    component: (
-      <RequireAuth>
-        <BrokeragesAndAccounts />
-      </RequireAuth>
-    ),
+    component: <BrokeragesAndAccounts />,
   },
   {
     type: "route",
@@ -49,13 +43,7 @@ const routes = [
     key: "balanceSheet",
     route: "/balanceSheet",
     icon: <AccountBalanceOutlined style={{ fontSize: 20 }} />,
-    component: (
-      <RequireAuth>
-        <RequireBrokerageConnected>
-          <BalanceSheet />
-        </RequireBrokerageConnected>
-      </RequireAuth>
-    ),
+    component: <BalanceSheet />,
   },
   {
     type: "route",
@@ -63,13 +51,7 @@ const routes = [
     key: "incomeStatement",
     route: "/incomeStatement",
     icon: <ReceiptLongOutlined style={{ fontSize: 20 }} />,
-    component: (
-      <RequireAuth>
-        <RequireBrokerageConnected>
-          <IncomeStatement />
-        </RequireBrokerageConnected>
-      </RequireAuth>
-    ),
+    component: <IncomeStatement />,
   },
   {
     type: "route",

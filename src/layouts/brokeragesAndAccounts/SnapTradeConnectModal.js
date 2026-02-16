@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { supabase } from "../../supabaseClient";
 import { useAuthStore } from "../../stores/useAuthStore";
 import supabaseService from "../../services/supabaseService";
 import Dialog from "@mui/material/Dialog";
@@ -112,15 +111,19 @@ export default function SnapTradeConnectModal({
     return err.message || "An unexpected error occurred. Please try again later.";
   };
 
+  const createTransientUserId = () => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
   /**
-   * Core SnapTrade flow:
-   * 1. Read the current user from the auth store (we expect user.email to exist).
-   * 2. Use user.email as the SnapTrade userId.
-   * 3. Ask Supabase Edge Functions if this user is already registered with SnapTrade.
-   * 4. If not registered -> register and store userSecret in Supabase + Zustand.
-   *    If registered   -> read userSecret from Supabase.
-   * 5. With userId + userSecret, call SnapTrade's login endpoint (via HTTPS) to get a login link.
-   * 6. If anything fails along the way, show a clear error and fall back to manual upload.
+   * Core SnapTrade flow (Workflow #3):
+   * 1. Generate a transient GUID as SnapTrade userId.
+   * 2. Register this one-time user via v2 registration Edge Function.
+   * 3. Keep userId + userSecret in local persisted store only.
+   * 4. Get the SnapTrade login link and load the portal.
    */
   useEffect(() => {
     if (!open) {
@@ -153,10 +156,7 @@ export default function SnapTradeConnectModal({
     }, 5000);
 
     const handleSnapTradeAuth = async () => {
-  const user = useAuthStore.getState().user;
-
-      // SnapTrade userId is always the user's email.
-      const userId = user?.email || null;
+      const userId = createTransientUserId();
 
       // Reset state each time the modal (re)opens
       setLocalError(null);
@@ -168,7 +168,7 @@ export default function SnapTradeConnectModal({
     setIsConnecting(true);
 
       addDebugLog("info", "SnapTrade modal opened", {
-        userId: userId || "missing",
+        userId,
         brokerageName,
         brokerSlug: brokerSlug || "missing",
       });
@@ -183,68 +183,12 @@ export default function SnapTradeConnectModal({
         return;
       }
 
-      if (!userId) {
-        addDebugLog("error", "User ID missing; cannot start SnapTrade flow", {
-          user,
-        });
-        setLocalError("User not found. Please log in again.");
-        setIsConnecting(false);
-        return;
-      }
-
       try {
-  // 1. Check if user is registered with SnapTrade (Edge Function: get-users)
-  addDebugLog("info", "Calling getSnapTradeUser", { userId });
-        const isRegistered = await supabaseService.getSnapTradeUser(userId);
+        addDebugLog("info", "Registering transient SnapTrade user", { userId });
+
+        const regResult = await supabaseService.registerUser(userId);
         let userSecret = null;
-        addDebugLog("info", "SnapTrade registration check completed", { isRegistered });
-
-        const fetchExistingSecret = async () => {
-          const { data, error: selectError } = await supabase
-            .from("users")
-            .select("snapusersecret")
-            .eq("email", user.email)
-            .maybeSingle();
-
-          if (selectError) {
-            addDebugLog("error", "Failed to read snapusersecret from Supabase", selectError);
-            return null;
-          }
-
-          return data?.snapusersecret || null;
-        };
-
-        try {
-          if (isRegistered) {
-            addDebugLog("info", "Re-registering SnapTrade user on connect", { userId });
-            const regResult = await supabaseService.registerUser(userId, { force: true });
-            userSecret = regResult?.userSecret || null;
-          } else {
-            addDebugLog("info", "Registering new SnapTrade user", { userId });
-            const regResult = await supabaseService.registerUser(userId, { force: false });
-            userSecret = regResult?.userSecret || null;
-          }
-        } catch (registerError) {
-          const errorCode = registerError?.body?.code;
-          addDebugLog("warn", "SnapTrade registration failed", {
-            message: registerError?.message,
-            code: errorCode,
-            body: registerError?.body,
-          });
-
-          if (errorCode === "USER_DELETE_FAILED") {
-            addDebugLog("warn", "Falling back to existing SnapTrade secret", { userId });
-            userSecret = await fetchExistingSecret();
-
-            if (!userSecret) {
-              addDebugLog("warn", "Retrying registration without force", { userId });
-              const regResult = await supabaseService.registerUser(userId, { force: false });
-              userSecret = regResult?.userSecret || null;
-            }
-          } else {
-            throw registerError;
-          }
-        }
+        userSecret = regResult?.userSecret || null;
 
         if (!userSecret) {
           addDebugLog("error", "SnapTrade registration failed", { userSecret });
@@ -257,26 +201,12 @@ export default function SnapTradeConnectModal({
           userSecret: redactSecret(userSecret),
         });
 
-        // Save userSecret to Zustand store
-        useAuthStore.setState({ snapUserSecret: userSecret });
-
-        // Save userSecret to Supabase (best-effort)
-        const { error: updateError } = await supabase
-          .from("users")
-          .update({ snapusersecret: userSecret })
-          .eq("email", user.email);
-        if (updateError) {
-          addDebugLog("error", "Failed to update userSecret in Supabase", updateError);
-        } else {
-          addDebugLog("info", "Updated userSecret in Supabase", { email: user.email });
-        }
-
-        // 4. Save userSecret to Zustand store for downstream flows
+        // Persist transient SnapTrade auth context client-side only.
         addDebugLog("info", "SnapTrade auth context ready", {
           userId,
           userSecret: redactSecret(userSecret),
         });
-        useAuthStore.setState({ snapUserSecret: userSecret });
+        useAuthStore.setState({ snapTradeUserId: userId, snapUserSecret: userSecret });
 
         // 5. Fetch login link via Supabase Edge Function to avoid CORS and keep secrets server-side.
         const frontendRedirectUri =

@@ -44,15 +44,6 @@ const fetchJson = async (url, config, errorPrefix) => {
 };
 
 const supabaseService = {
-  async getSnapTradeUser(userId) {
-    const data = await fetchJson(
-      `${SUPABASE_URL}/functions/v1/get-users`,
-      buildEdgeRequest(),
-      "SnapTrade get-users error"
-    );
-    return Array.isArray(data) ? data.includes(userId) : false;
-  },
-
   async getFinancials(filter = {}) {
     return fetchJson(
       `${SUPABASE_URL}/rest/v1/financials${buildFilterQuery(filter)}`,
@@ -100,10 +91,10 @@ const supabaseService = {
     return res.json();
   },
 
-  async registerUser(userId, options = {}) {
+  async registerUser(userId) {
     const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/snaptrade-register-user`,
-      buildEdgeRequest({ method: "POST", body: { userId, force: Boolean(options.force) } })
+      `${SUPABASE_URL}/functions/v1/snaptrade-register-user-v2`,
+      buildEdgeRequest({ method: "POST", body: { userId } })
     );
     if (!res.ok) {
       const errorBody = await readErrorBody(res);

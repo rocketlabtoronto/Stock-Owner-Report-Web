@@ -5,18 +5,18 @@ export const useAuthStore = create(
   persist(
     (set) => ({
       user: null,
+      snapTradeUserId: null,
       snapUserSecret: null,
-      isAuthenticated: false,
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
-      clearUser: () => set({ user: null, isAuthenticated: false }),
+      setUser: (user) => set({ user }),
+      clearUser: () => set({ user: null, snapTradeUserId: null, snapUserSecret: null }),
     }),
     {
       name: "auth-storage", // name of the item in storage
       getStorage: () => localStorage, // (optional) by default, 'localStorage' is used
       partialize: (state) => ({
         user: state.user,
+        snapTradeUserId: state.snapTradeUserId,
         snapUserSecret: state.snapUserSecret,
-        isAuthenticated: state.isAuthenticated,
       }),
     }
   )

@@ -102,6 +102,7 @@ export default function BrokeragesAndAccounts() {
   const brokeragesAndAccounts = useAppStore((state) => state.brokeragesAndAccounts);
   const accountHoldingsByAccount = useAppStore((state) => state.accountHoldingsByAccount);
   const snapTradeAccounts = useAppStore((state) => state.snapTradeAccounts);
+  const snapTradeLastConnectedAt = useAppStore((state) => state.snapTradeLastConnectedAt);
   const unlinkBrokerage = useAppStore((state) => state.unlinkBrokerage);
 
   const [open, setOpen] = useState(false);
@@ -339,6 +340,10 @@ export default function BrokeragesAndAccounts() {
 
   const brokerages = Object.values(groupedByBrokerage);
 
+  const formattedConnectedAt = snapTradeLastConnectedAt
+    ? new Date(snapTradeLastConnectedAt).toLocaleString()
+    : null;
+
   const computeSummary = (accounts) => {
     const linked = accounts.filter((a) => a.included);
     const linkedCount = linked.length;
@@ -373,6 +378,12 @@ export default function BrokeragesAndAccounts() {
     <DashboardLayout>
       <DashboardNavbar />
       <CustomBox py={3}>
+        {formattedConnectedAt && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Last connected to SnapTrade: {formattedConnectedAt}
+          </Typography>
+        )}
+
         {/* Main Content */}
         {brokerages.length === 0 ? (
           // Enhanced Empty State

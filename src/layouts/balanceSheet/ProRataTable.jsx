@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { AgGridReact } from "ag-grid-react";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -12,7 +15,7 @@ function parseMoney(str) {
   return isNaN(num) ? 0 : num;
 }
 
-function ProRataTable({ loading, data, height = 400 }) {
+function ProRataTable({ loading, data, height = 400, paywall }) {
   const gridApiRef = useRef(null);
   const columnApiRef = useRef(null);
   const resizeTimeoutRef = useRef(null);
@@ -150,34 +153,77 @@ function ProRataTable({ loading, data, height = 400 }) {
     return row;
   });
 
+  const shouldApplyPaywall = Boolean(paywall?.enabled) && !Boolean(paywall?.isSubscribed);
+
   return (
-    <div className="ag-theme-alpine" style={{ height, width: "100%" }}>
-      <AgGridReact
-        rowData={rowData}
-        columnDefs={columnDefs}
-        pagination={false}
-        pinnedBottomRowData={[totalRow]}
-        rowHeight={32}
-        tooltipShowDelay={200}
-        tooltipHideDelay={2000}
-        enableBrowserTooltips
-        onGridReady={(params) => {
-          gridApiRef.current = params.api;
-          columnApiRef.current = params.columnApi;
-          autoSizeAllColumns();
-          sizeColumnsToFit();
-        }}
-        onFirstDataRendered={autoSizeAllColumns}
-        onGridSizeChanged={scheduleResize}
-        headerHeight={32}
-        defaultColDef={{
-          wrapHeaderText: false,
-          autoHeaderHeight: false,
-          suppressMenu: true,
-          cellStyle: { fontSize: 12 },
-        }}
-      />
-    </div>
+    <>
+      {shouldApplyPaywall && (
+        <Box
+          sx={{
+            mb: 1.5,
+            p: 1.5,
+            borderRadius: 2,
+            backgroundColor: "rgba(25,118,210,0.08)",
+            border: "1px solid rgba(25,118,210,0.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            flexWrap: "wrap",
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            Want to see all equity holdings? Get Started and register.
+          </Typography>
+          <Button
+            variant="contained"
+            component="a"
+            href={paywall?.registerPath || "/billing"}
+            sx={{ textTransform: "none", fontWeight: 600 }}
+          >
+            Get Started
+          </Button>
+        </Box>
+      )}
+
+      <div className="ag-theme-alpine" style={{ height, width: "100%" }}>
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          pagination={false}
+          pinnedBottomRowData={[totalRow]}
+          rowHeight={32}
+          tooltipShowDelay={200}
+          tooltipHideDelay={2000}
+          enableBrowserTooltips
+          getRowStyle={(params) => {
+            if (params?.node?.rowPinned) return null;
+            if (shouldApplyPaywall && (params?.node?.rowIndex ?? -1) >= 5) {
+              return {
+                filter: "blur(6px)",
+                userSelect: "none",
+              };
+            }
+            return null;
+          }}
+          onGridReady={(params) => {
+            gridApiRef.current = params.api;
+            columnApiRef.current = params.columnApi;
+            autoSizeAllColumns();
+            sizeColumnsToFit();
+          }}
+          onFirstDataRendered={autoSizeAllColumns}
+          onGridSizeChanged={scheduleResize}
+          headerHeight={32}
+          defaultColDef={{
+            wrapHeaderText: false,
+            autoHeaderHeight: false,
+            suppressMenu: true,
+            cellStyle: { fontSize: 12 },
+          }}
+        />
+      </div>
+    </>
   );
 }
 
@@ -192,6 +238,11 @@ ProRataTable.propTypes = {
       })
     ),
     rows: PropTypes.arrayOf(PropTypes.object),
+  }),
+  paywall: PropTypes.shape({
+    enabled: PropTypes.bool,
+    isSubscribed: PropTypes.bool,
+    registerPath: PropTypes.string,
   }),
 };
 

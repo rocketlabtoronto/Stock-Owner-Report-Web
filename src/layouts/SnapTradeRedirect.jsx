@@ -32,7 +32,7 @@ async function fetchSnapTradeAccounts(userId, userSecret) {
 
 export default function SnapTradeRedirect() {
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
+  const snapTradeUserId = useAuthStore((state) => state.snapTradeUserId);
   const userSecret = useAuthStore((state) => state.snapUserSecret);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
@@ -42,6 +42,7 @@ export default function SnapTradeRedirect() {
   const upsertBrokerageAccount = useAppStore((state) => state.upsertBrokerageAccount);
   const setAccountHoldings = useAppStore((state) => state.setAccountHoldings);
   const setAccountHoldingsForAccount = useAppStore((state) => state.setAccountHoldingsForAccount);
+  const setSnapTradeLastConnectedAt = useAppStore((state) => state.setSnapTradeLastConnectedAt);
 
   useEffect(() => {
     async function load() {
@@ -58,30 +59,10 @@ export default function SnapTradeRedirect() {
           return;
         }
 
-        let snapTradeUserId = user?.email || null;
-        let resolvedUserSecret = userSecret;
-
-        if (!snapTradeUserId) {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-          snapTradeUserId = session?.user?.email || null;
-        }
-
-        if (snapTradeUserId && !resolvedUserSecret) {
-          const { data: userRow, error: userError } = await supabase
-            .from("users")
-            .select("snapusersecret")
-            .eq("email", snapTradeUserId)
-            .single();
-          if (userError) {
-            throw new Error(`Failed to fetch SnapTrade secret: ${userError.message}`);
-          }
-          resolvedUserSecret = userRow?.snapusersecret;
-        }
+        const resolvedUserSecret = userSecret;
 
         if (!snapTradeUserId || !resolvedUserSecret) {
-          throw new Error("Missing user or SnapTrade secret");
+          throw new Error("Missing SnapTrade connection context. Please reconnect your brokerage.");
         }
 
         const result = await fetchSnapTradeAccounts(snapTradeUserId, resolvedUserSecret);
@@ -106,6 +87,8 @@ export default function SnapTradeRedirect() {
           setAccountHoldings(flatHoldings);
         }
 
+        setSnapTradeLastConnectedAt(new Date().toISOString());
+
         setStatus("success");
         setTimeout(() => navigate("/brokeragesAndAccounts"), 500);
       } catch (e) {
@@ -115,7 +98,17 @@ export default function SnapTradeRedirect() {
       }
     }
     load();
-  }, [user, userSecret, setSnapTradeAccounts, setSnapTradeHoldings]);
+  }, [
+    snapTradeUserId,
+    userSecret,
+    setSnapTradeAccounts,
+    setSnapTradeHoldings,
+    upsertBrokerageAccount,
+    setAccountHoldings,
+    setAccountHoldingsForAccount,
+    setSnapTradeLastConnectedAt,
+    navigate,
+  ]);
 
   const showOverlay = status === "loading" || status === "success" || status === "error";
   const title =
