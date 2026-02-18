@@ -7,7 +7,7 @@ export default styled(Drawer)(({ theme, ownerState }) => {
   const { darkSidenav, miniSidenav, layout } = ownerState;
 
   const sidebarWidth = 284;
-  const { white, background, transparent } = palette;
+  const { white, background, transparent, dark, info } = palette;
   const { xxl } = boxShadows;
   const { pxToRem } = functions;
   const softShadow = "0 10px 28px rgba(15, 23, 42, 0.10)";
@@ -70,10 +70,27 @@ export default styled(Drawer)(({ theme, ownerState }) => {
   return {
     "& .MuiDrawer-paper": {
       boxShadow: softShadow,
-      border: "none",
+      border: `1px solid ${darkSidenav ? "transparent" : "rgba(15, 23, 42, 0.08)"}`,
       backgroundColor: bgColor,
+      backgroundImage: darkSidenav
+        ? "none"
+        : `linear-gradient(180deg, ${white.main} 0%, rgba(236, 242, 255, 0.45) 100%)`,
       borderRadius: pxToRem(14),
       margin: `${pxToRem(16)} 0 ${pxToRem(16)} ${pxToRem(16)}`,
+      overflow: "hidden",
+
+      "&::before": {
+        content: '""',
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: pxToRem(3),
+        background: darkSidenav
+          ? "transparent"
+          : `linear-gradient(90deg, ${info.main}, rgba(46, 125, 50, 0.8))`,
+        pointerEvents: "none",
+      },
 
       ...(miniSidenav ? drawerCloseStyles() : drawerOpenStyles()),
     },

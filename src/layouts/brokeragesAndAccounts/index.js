@@ -450,7 +450,7 @@ export default function BrokeragesAndAccounts() {
               <Stack spacing={4} position="relative">
                 <Typography
                   variant="body2"
-                  color="text.secondary"
+                  color="text.primary"
                   sx={{ maxWidth: 960, lineHeight: 1.55 }}
                 >
                   Connect your brokerage to instantly unify holdings across accounts, and see your
