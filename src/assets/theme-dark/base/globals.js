@@ -65,6 +65,9 @@ const globals = {
     boxShadow: "none",
     overflow: "hidden",
   },
+  ".ag-theme-alpine .ag-root-wrapper, .ag-theme-alpine .ag-root, .ag-theme-alpine .ag-root-wrapper-body": {
+    height: "100%",
+  },
   ".ag-theme-alpine .ag-header": {
     borderBottom: "1px solid #2c3f54",
     fontWeight: 600,

@@ -48,8 +48,8 @@ function IncomeStatement() {
             borderBottom: "1px solid #d6d9de",
             width: "100%",
             maxWidth: "100%",
-            height: "calc(100vh - 180px)",
-            maxHeight: "calc(100vh - 180px)",
+            height: "calc(100vh - 120px)",
+            maxHeight: "calc(100vh - 120px)",
             display: "flex",
             flexDirection: "column",
             position: "relative",
@@ -175,11 +175,10 @@ function IncomeStatement() {
             represents, just as if you personally owned that fraction of the entire business.
           </CustomTypography>
 
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <Box sx={{ flex: 1, height: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
             <ProRataTable
               loading={loading}
               data={aggregatedData}
-              height="100%"
               paywall={{ enabled: hasRows && !isLoggedIn, registerPath: "/billing" }}
             />
           </Box>

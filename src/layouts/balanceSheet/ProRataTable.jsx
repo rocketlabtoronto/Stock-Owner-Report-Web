@@ -156,20 +156,21 @@ function ProRataTable({ loading, data, height = 400, paywall }) {
   const shouldApplyPaywall = Boolean(paywall?.enabled);
 
   return (
-    <>
+    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: 0, minHeight: 0, width: "100%" }}>
       {shouldApplyPaywall && (
         <Box
           sx={{
             mb: 1.5,
             p: 1.5,
-            borderRadius: 2,
-            backgroundColor: "rgba(25,118,210,0.08)",
-            border: "1px solid rgba(25,118,210,0.25)",
+            borderRadius: 0,
+            backgroundColor: "#eaecef",
+            border: "1px solid #d6d9de",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: 2,
             flexWrap: "wrap",
+            flexShrink: 0,
           }}
         >
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -196,8 +197,9 @@ function ProRataTable({ loading, data, height = 400, paywall }) {
         </Box>
       )}
 
-      <div className="ag-theme-alpine" style={{ height, width: "100%" }}>
+      <div className="ag-theme-alpine" style={{ flex: 1, minHeight: 0, width: "100%", height: "100%" }}>
         <AgGridReact
+          domLayout="normal"
           rowData={rowData}
           columnDefs={columnDefs}
           pagination={false}
@@ -233,7 +235,7 @@ function ProRataTable({ loading, data, height = 400, paywall }) {
           }}
         />
       </div>
-    </>
+    </Box>
   );
 }
 
