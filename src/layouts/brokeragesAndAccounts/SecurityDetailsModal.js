@@ -42,45 +42,59 @@ const SECTIONS = [
 
 export default function SecurityDetailsModal({ open, onClose }) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="paper">
-      <DialogTitle sx={{ fontWeight: 700, fontSize: 20, pb: 0.5 }}>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="paper"
+      PaperProps={{ sx: { borderRadius: 0, boxShadow: "0 4px 24px rgba(13,27,42,0.12)" } }}
+    >
+      <DialogTitle sx={{ fontWeight: 700, fontSize: 18, color: "#0d1b2a", borderBottom: "1px solid #d6d9de", pb: 1.5 }}>
         Privacy &amp; Security Details
       </DialogTitle>
 
-      <DialogContent dividers sx={{ pt: 2 }}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+      <DialogContent sx={{ pt: 2.5 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {SECTIONS.map(({ title, body }, i) => (
             <Box key={title}>
-              {i > 0 && <Divider sx={{ mb: 2.5 }} />}
-              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.75 }}>
+              {i > 0 && <Divider sx={{ mb: 2, borderColor: "#d6d9de" }} />}
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#111827", mb: 0.5, textTransform: "uppercase", letterSpacing: 0.8 }}>
                 {title}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.65 }}>
+              <Typography sx={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.7 }}>
                 {body}
               </Typography>
             </Box>
           ))}
         </Box>
 
-        <Divider sx={{ mt: 3, mb: 1.5 }} />
+        <Divider sx={{ mt: 3, mb: 1.5, borderColor: "#d6d9de" }} />
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-          <Link href="/privacy" variant="caption" sx={{ fontWeight: 600 }}>
+          <Link href="/privacy" sx={{ fontSize: 12.5, fontWeight: 600, color: "#0d1b2a" }}>
             Privacy Policy
           </Link>
-          <Link href="/terms" variant="caption" sx={{ fontWeight: 600 }}>
+          <Link href="/terms" sx={{ fontSize: 12.5, fontWeight: 600, color: "#0d1b2a" }}>
             Terms of Use
           </Link>
         </Box>
-        <Typography variant="caption" color="text.disabled" sx={{ display: "block", mt: 0.75 }}>
+        <Typography sx={{ fontSize: 12, color: "#9CA3AF", display: "block", mt: 0.75 }}>
           Last updated: 2026-02-18
         </Typography>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2 }}>
+      <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #d6d9de" }}>
         <Button
-          variant="outlined"
           onClick={onClose}
-          sx={{ fontWeight: 600, textTransform: "none", minWidth: 100 }}
+          sx={{
+            backgroundColor: "#0d1b2a",
+            color: "#fff",
+            fontWeight: 600,
+            px: 3.5,
+            py: 1,
+            fontSize: 13,
+            borderRadius: 0,
+            textTransform: "uppercase",
+            letterSpacing: 1.2,
+            boxShadow: "none",
+            minWidth: 100,
+            "&:hover": { backgroundColor: "#1a3a5c", boxShadow: "none" },
+          }}
         >
           Close
         </Button>

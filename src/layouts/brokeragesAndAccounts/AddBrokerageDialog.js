@@ -151,25 +151,37 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-        <DialogTitle>
-          Connect to your Brokerage
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: 0, boxShadow: "0 4px 24px rgba(13,27,42,0.12)" } }}
+      >
+        <DialogTitle sx={{
+          fontWeight: 700,
+          fontSize: 18,
+          color: "#0d1b2a",
+          borderBottom: "1px solid #d6d9de",
+          pb: 1.5,
+        }}>
+          Connect a Brokerage
           <IconButton
             aria-label="close"
             onClick={onClose}
             sx={{
               position: "absolute",
-              right: 8,
-              top: 8,
+              right: 12,
+              top: 10,
+              color: "#9CA3AF",
+              "&:hover": { color: "#0d1b2a", background: "none" },
             }}
           >
-            <CloseIcon />
+            <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers>
-          <Typography gutterBottom>Select your country and brokerage:</Typography>
+        <DialogContent sx={{ pt: 2.5, pb: 1 }}>
+          <Typography sx={{ fontSize: 13, color: "#4B5563", mb: 2, lineHeight: 1.6 }}>
+            Select your country and brokerage:
+          </Typography>
           {isSnapTradeDisabled && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            <Typography sx={{ fontSize: 12.5, color: "#9CA3AF", mb: 1.5, lineHeight: 1.6 }}>
               Direct brokerage connections are temporarily unavailable. Please use manual upload.
             </Typography>
           )}
@@ -177,7 +189,17 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
             <select
               value={country}
               onChange={(e) => setCountry(e.target.value)}
-              style={{ fontSize: 16, padding: 6, borderRadius: 6 }}
+              style={{
+                fontSize: 13,
+                padding: "6px 10px",
+                borderRadius: 0,
+                border: "1px solid #d6d9de",
+                color: "#0d1b2a",
+                fontWeight: 600,
+                background: "#fff",
+                outline: "none",
+                cursor: "pointer",
+              }}
             >
               <option value="Canada">Canada</option>
               <option value="United States">United States</option>
@@ -203,20 +225,21 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
                   key={broker.name}
                   onClick={() => handleBrokerageTileClick(broker)}
                   style={{
-                    width: 125,
-                    height: 125,
+                    width: 120,
+                    height: 120,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    border: "1px solid #eee",
-                    borderRadius: 8,
-                    background: "#fafbfc",
+                    border: "1px solid #d6d9de",
+                    borderRadius: 0,
+                    background: requiresManual ? "#F9FAFB" : "#fff",
                     cursor: "pointer",
-                    boxShadow: requiresManual ? "0 0 0 2px #f5a623" : "none",
-                    opacity: requiresManual ? 0.85 : 1,
-                    transition: "box-shadow 0.2s, opacity 0.2s",
+                    opacity: requiresManual ? 0.7 : 1,
+                    transition: "background 0.15s, border-color 0.15s",
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#0d1b2a"; e.currentTarget.style.background = "#F9FAFB"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#d6d9de"; e.currentTarget.style.background = requiresManual ? "#F9FAFB" : "#fff"; }}
                   title={requiresManual ? "Manual upload required" : "Connect via API"}
                 >
                   <img
@@ -224,7 +247,7 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
                     alt={broker.name}
                     style={{ width: 100, height: 100, objectFit: "contain", marginBottom: 4 }}
                   />
-                  <span style={{ fontSize: 12, textAlign: "center", color: "#333" }}>
+                  <span style={{ fontSize: 11, textAlign: "center", color: "#4B5563", fontWeight: 500 }}>
                     {broker.name}
                   </span>
                 </div>
@@ -239,12 +262,12 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
             style={{ display: "none" }}
           />
           {selectedFile && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
+            <Typography sx={{ fontSize: 12.5, color: "#4B5563", mt: 1 }}>
               Selected file: {selectedFile.name}
             </Typography>
           )}
           {parsedData.length > 0 && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
+            <Typography sx={{ fontSize: 12.5, color: "#4B5563", mt: 1 }}>
               Parsed {parsedData.length} rows.
             </Typography>
           )}

@@ -21,55 +21,45 @@ export default function LegalDocumentLayout({ title, effectiveDate, children }) 
           <Card
             sx={{
               p: { xs: 3, md: 4 },
-              background: "background.paper",
-              borderRadius: 3,
-              boxShadow: 6,
-              border: "1px solid",
-              borderColor: "divider",
+              background: "#fff",
+              borderRadius: 0,
+              boxShadow: "0 2px 12px rgba(13,27,42,0.08)",
+              border: "1px solid #d6d9de",
+              borderTop: "3px solid #0d1b2a",
               maxWidth: 960,
               width: "100%",
-              position: "relative",
-              "&::before": {
-                content: '""',
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "4px",
-                background: (theme) =>
-                  `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.info.main})`,
-                borderTopLeftRadius: "12px",
-                borderTopRightRadius: "12px",
-              },
               "& .MuiTypography-caption": {
                 fontSize: "0.9375rem",
                 lineHeight: 1.55,
-                color: "text.primary",
+                color: "#4B5563",
               },
               "& .MuiTypography-h6": {
-                fontSize: "1.25rem",
+                fontSize: "1.1rem",
                 lineHeight: 1.3,
+                color: "#0d1b2a",
               },
             }}
           >
-            <CustomTypography variant="h4" fontWeight="bold" color="text" gutterBottom>
+            <CustomTypography variant="h4" fontWeight="bold" color="text" gutterBottom
+              sx={{ color: "#0d1b2a", fontSize: "1.6rem", letterSpacing: "-0.5px" }}
+            >
               {title}
             </CustomTypography>
 
-            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7 }}>
+            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7, color: "#4B5563", fontSize: 13.5 }}>
               Effective Date: {effectiveDate}
             </CustomTypography>
-            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7 }}>
+            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7, color: "#4B5563", fontSize: 13.5 }}>
               Company: {COMPANY_NAME}
             </CustomTypography>
-            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7 }}>
+            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7, color: "#4B5563", fontSize: 13.5 }}>
               Address: {COMPANY_ADDRESS}
             </CustomTypography>
-            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7, mb: 1 }}>
-              Contact: <Link href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</Link>
+            <CustomTypography variant="caption" color="text" display="block" sx={{ lineHeight: 1.7, color: "#4B5563", fontSize: 13.5, mb: 1 }}>
+              Contact: <Link href={`mailto:${SUPPORT_EMAIL}`} sx={{ color: "#0d1b2a", fontWeight: 600 }}>{SUPPORT_EMAIL}</Link>
             </CustomTypography>
 
-            <Divider sx={{ my: 2 }} />
+            <Divider sx={{ my: 2, borderColor: "#d6d9de" }} />
 
             {children}
           </Card>

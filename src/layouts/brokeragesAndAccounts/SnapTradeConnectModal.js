@@ -368,28 +368,36 @@ export default function SnapTradeConnectModal({
   const showManualFallback = !snapTradeReady && (!isConnecting || fallbackTimerExpired);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+      PaperProps={{ sx: { borderRadius: 0, boxShadow: "0 4px 24px rgba(13,27,42,0.12)" } }}
+    >
+      <DialogTitle sx={{
+        fontWeight: 700,
+        fontSize: 18,
+        color: "#0d1b2a",
+        borderBottom: "1px solid #d6d9de",
+        pb: 1.5,
+      }}>
         Connect to {brokerageName}
         <IconButton
           aria-label="close"
           onClick={onClose}
-          sx={{ position: "absolute", right: 8, top: 8 }}
+          sx={{ position: "absolute", right: 12, top: 10, color: "#9CA3AF", "&:hover": { color: "#0d1b2a", background: "none" } }}
         >
-          <CloseIcon />
+          <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers>
+      <DialogContent sx={{ pt: 2.5 }}>
         {(localError || error) && (
-          <Typography sx={{ color: "error.main", mb: 2 }}>
+          <Typography sx={{ fontSize: 13.5, color: "#b91c1c", mb: 2, lineHeight: 1.6 }}>
             {localError || error}
           </Typography>
         )}
 
         {!snapTradeReady && isConnecting && !fallbackTimerExpired && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-            <CircularProgress size={22} />
-            <Typography variant="body2" color="text.secondary">
+            <CircularProgress size={18} sx={{ color: "#0d1b2a" }} />
+            <Typography sx={{ fontSize: 13.5, color: "#4B5563" }}>
               Connecting to {brokerageName}...
             </Typography>
           </Box>
@@ -399,9 +407,8 @@ export default function SnapTradeConnectModal({
           <>
             <Box
               sx={{
-                borderRadius: 2,
-                border: "1px solid",
-                borderColor: "divider",
+                borderRadius: 0,
+                border: "1px solid #d6d9de",
                 overflow: "hidden",
                 height: 560,
               }}
@@ -421,43 +428,49 @@ export default function SnapTradeConnectModal({
           <>
             <Box
               sx={{
-                borderRadius: 3,
-                border: "1px solid",
-                borderColor: "rgba(148, 163, 184, 0.35)",
-                backgroundColor: "rgba(248, 250, 252, 0.9)",
+                borderRadius: 0,
+                border: "1px solid #d6d9de",
+                backgroundColor: "#F9FAFB",
                 p: 2.5,
               }}
             >
-              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.75 }}>
-                We couldn&apos;t start the direct connection to <b>{brokerageName}</b>…
+              <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0d1b2a", mb: 0.75 }}>
+                We couldn&apos;t start the direct connection to <strong>{brokerageName}</strong>…
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography sx={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.7, mb: 2 }}>
                 Please download your transactions or holdings file from your brokerage and upload it
                 here. This keeps your report up to date while we retry the direct connection.
               </Typography>
-              <Typography variant="body2" sx={{ mb: 1, color: "#475569" }}>
-                Use our template to match the required format: {" "}
-                <a href={templateUrl} download style={{ textDecoration: "underline" }}>
+              <Typography sx={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.7, mb: 1 }}>
+                Use our template to match the required format:{" "}
+                <a href={templateUrl} download style={{ color: "#0d1b2a", fontWeight: 600 }}>
                   download template
                 </a>
                 .
               </Typography>
-              <Typography variant="body2" sx={{ mb: 2, color: "#475569" }}>
-                <b>CSV structure:</b> Account row, blank row, header row (Symbol, Market, Quantity),
+              <Typography sx={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.7, mb: 2 }}>
+                <strong>CSV structure:</strong> Account row, blank row, header row (Symbol, Market, Quantity),
                 then holdings rows.
               </Typography>
               <Button
-                variant="contained"
+                variant="outlined"
                 onClick={handleChooseFile}
                 sx={{
-                  textTransform: "none",
+                  color: "#0d1b2a",
+                  borderColor: "#0d1b2a",
+                  borderRadius: 0,
                   fontWeight: 600,
+                  fontSize: 13,
+                  textTransform: "uppercase",
+                  letterSpacing: 1.1,
+                  boxShadow: "none",
+                  "&:hover": { backgroundColor: "#F9FAFB", borderColor: "#0d1b2a", boxShadow: "none" },
                   minWidth: 160,
                 }}
               >
                 Choose File
               </Button>
-              <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#64748b" }}>
+              <Typography sx={{ fontSize: 12, color: "#9CA3AF", display: "block", mt: 1 }}>
                 Need help? Contact support and we&apos;ll assist right away.
               </Typography>
             </Box>
@@ -478,7 +491,7 @@ export default function SnapTradeConnectModal({
 
         {showDebugLogs && (
           <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#111827", mb: 1 }}>
               Debug logs
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
@@ -487,11 +500,12 @@ export default function SnapTradeConnectModal({
                 size="small"
                 onClick={handleCopyLogs}
                 disabled={!debugLogs.length}
+                sx={{ borderRadius: 0, borderColor: "#d6d9de", color: "#4B5563", textTransform: "none", fontSize: 12 }}
               >
                 Copy logs
               </Button>
               {copyStatus && (
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>
                   {copyStatus}
                 </Typography>
               )}
@@ -499,20 +513,44 @@ export default function SnapTradeConnectModal({
           </Box>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} color="primary" sx={{ textTransform: "none", fontWeight: 500 }}>
+      <DialogActions sx={{
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: 1.5,
+        px: 3,
+        py: 2,
+        borderTop: "1px solid #d6d9de",
+      }}>
+        <Button
+          onClick={onClose}
+          sx={{
+            fontWeight: 600,
+            textTransform: "none",
+            color: "#6b7280",
+            fontSize: 13,
+            px: 2,
+            "&:hover": { background: "none", color: "#0d1b2a" },
+          }}
+        >
           Cancel
         </Button>
         <Button
           onClick={onUpload}
           variant="contained"
-          color="primary"
           disabled={!showManualFallback || !selectedFile}
           sx={{
-            textTransform: "none",
-            fontWeight: 600,
+            backgroundColor: "#0d1b2a",
             color: "#fff",
-            "&.Mui-disabled": { opacity: 0.5, color: "#fff" },
+            fontWeight: 600,
+            px: 3.5,
+            py: 1.1,
+            fontSize: 13,
+            borderRadius: 0,
+            textTransform: "uppercase",
+            letterSpacing: 1.2,
+            boxShadow: "none",
+            "&:hover": { backgroundColor: "#1a3a5c", boxShadow: "none" },
+            "&:disabled": { backgroundColor: "#9ca3af", color: "#fff" },
           }}
         >
           Upload

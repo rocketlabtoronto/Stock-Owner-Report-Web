@@ -25,26 +25,34 @@ function ManualUploadInstructionsModal({
     if (fileInputRef.current) fileInputRef.current.click();
   };
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+      PaperProps={{ sx: { borderRadius: 0, boxShadow: "0 4px 24px rgba(13,27,42,0.12)" } }}
+    >
+      <DialogTitle sx={{
+        fontWeight: 700,
+        fontSize: 18,
+        color: "#0d1b2a",
+        borderBottom: "1px solid #d6d9de",
+        pb: 1.5,
+      }}>
         Manual Upload Required
         <IconButton
           aria-label="close"
           onClick={onClose}
-          sx={{ position: "absolute", right: 8, top: 8 }}
+          sx={{ position: "absolute", right: 12, top: 10, color: "#9CA3AF", "&:hover": { color: "#0d1b2a", background: "none" } }}
         >
-          <CloseIcon />
+          <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers>
-        <Typography gutterBottom>
-          Direct API integration is not currently available for <b>{brokerageName}</b>.
+      <DialogContent sx={{ pt: 2.5 }}>
+        <Typography sx={{ fontSize: 14, color: "#4B5563", lineHeight: 1.7, mb: 1 }}>
+          Direct API integration is not currently available for <strong style={{ color: "#0d1b2a" }}>{brokerageName}</strong>.
         </Typography>
-        <Typography gutterBottom>
+        <Typography sx={{ fontSize: 14, color: "#4B5563", lineHeight: 1.7, mb: 1 }}>
           To connect your account, please manually download your transaction or holdings file from
           your brokerage&apos;s online portal and upload it here.
         </Typography>
-        <Typography variant="body2" sx={{ mt: 2, mb: 2, color: "#444" }}>
+        <Typography sx={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.7, mt: 1.5, mb: 1.5 }}>
           Please ensure your upload file matches our required format. You can download a sample
           template{" "}
           <a href={templateUrl} download style={{ textDecoration: "underline" }}>
@@ -66,7 +74,7 @@ function ManualUploadInstructionsModal({
               Each subsequent row should list a holding with its symbol, market, and quantity.
             </li>
           </ul>
-          <span style={{ color: "#888", fontSize: 13 }}>
+          <span style={{ color: "#9CA3AF", fontSize: 12.5 }}>
             If you have questions, please contact support for assistance.
           </span>
         </Typography>
@@ -76,11 +84,15 @@ function ManualUploadInstructionsModal({
           sx={{
             mt: 2,
             backgroundColor: "#fff",
-            color: "#000",
-            borderColor: "#000",
-            fontWeight: 500,
-            fontSize: 16,
-            "&:hover": { backgroundColor: "#f5f5f5", borderColor: "#000", color: "#000" },
+            color: "#0d1b2a",
+            borderColor: "#0d1b2a",
+            borderRadius: 0,
+            fontWeight: 600,
+            fontSize: 13,
+            textTransform: "uppercase",
+            letterSpacing: 1.1,
+            boxShadow: "none",
+            "&:hover": { backgroundColor: "#F9FAFB", borderColor: "#0d1b2a", boxShadow: "none" },
             minWidth: 160,
           }}
         >
@@ -94,25 +106,49 @@ function ManualUploadInstructionsModal({
           style={{ display: "none" }}
         />
         {selectedFile && (
-          <Typography variant="body2" sx={{ mt: 1 }}>
+          <Typography sx={{ fontSize: 12.5, color: "#4B5563", mt: 1 }}>
             Selected file: {selectedFile.name}
           </Typography>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} color="primary" sx={{ textTransform: "none", fontWeight: 500 }}>
+      <DialogActions sx={{
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: 1.5,
+        px: 3,
+        py: 2,
+        borderTop: "1px solid #d6d9de",
+      }}>
+        <Button
+          onClick={onClose}
+          sx={{
+            fontWeight: 600,
+            textTransform: "none",
+            color: "#6b7280",
+            fontSize: 13,
+            px: 2,
+            "&:hover": { background: "none", color: "#0d1b2a" },
+          }}
+        >
           Cancel
         </Button>
         <Button
           onClick={onUpload}
           variant="contained"
-          color="primary"
           disabled={!selectedFile}
           sx={{
-            textTransform: "none",
-            fontWeight: 600,
+            backgroundColor: "#0d1b2a",
             color: "#fff",
-            "&.Mui-disabled": { opacity: 0.5, color: "#fff" },
+            fontWeight: 600,
+            px: 3.5,
+            py: 1.1,
+            fontSize: 13,
+            borderRadius: 0,
+            textTransform: "uppercase",
+            letterSpacing: 1.2,
+            boxShadow: "none",
+            "&:hover": { backgroundColor: "#1a3a5c", boxShadow: "none" },
+            "&:disabled": { backgroundColor: "#9ca3af", color: "#fff" },
           }}
         >
           Upload
