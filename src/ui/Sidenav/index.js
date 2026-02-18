@@ -24,6 +24,7 @@ import SidenavRoot from "ui/Sidenav/SidenavRoot";
 // Custom Dashboard 2 MUI context
 import { useCustomController, setMiniSidenav } from "context";
 import { useAuthStore } from "stores/useAuthStore";
+import { useAppStore } from "stores/store";
 
 function Sidenav({ color, brand, brandName, routes, ...rest }) {
   const [controller, dispatch] = useCustomController();
@@ -54,6 +55,11 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
 
   const user = useAuthStore((s) => s.user);
   const clearUser = useAuthStore((s) => s.clearUser);
+  const brokeragesAndAccounts = useAppStore((s) => s.brokeragesAndAccounts);
+  const snapTradeAccounts = useAppStore((s) => s.snapTradeAccounts);
+  const hasBrokerageConnected =
+    (Array.isArray(brokeragesAndAccounts) && brokeragesAndAccounts.length > 0) ||
+    (Array.isArray(snapTradeAccounts) && snapTradeAccounts.length > 0);
 
   const handleSignOut = () => {
     clearUser();
@@ -114,7 +120,7 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
     <SidenavRoot {...rest} variant="permanent" ownerState={{ darkSidenav, miniSidenav, layout }}>
       <List sx={{ mt: 1, px: 1 }}>{renderRoutes}</List>
       <div style={{ flexGrow: 1 }} />
-      {user && (
+      {(user || hasBrokerageConnected) && (
         <div style={{ padding: "12px 16px", marginTop: "auto" }}>
           <Button
             onClick={handleSignOut}
