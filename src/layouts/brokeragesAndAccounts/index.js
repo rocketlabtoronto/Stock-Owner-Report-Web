@@ -22,8 +22,16 @@ import CustomBox from "components/CustomBox";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 import AddBrokerageDialog from "./AddBrokerageDialog";
+import ConsentModal from "./ConsentModal";
+import SecurityDetailsModal from "./SecurityDetailsModal";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import BarChartIcon from "@mui/icons-material/BarChart";
+import LinkIcon from "@mui/icons-material/Link";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import { bankLogoMap, logoFromBank } from "utils/brokerageLogos";
+
+const CONSENT_STORAGE_KEY = "brokerage_consent";
 
 // Function to calculate balance using current stock prices
 async function calculateBalanceFromStockPrices(holdings) {
@@ -107,6 +115,8 @@ export default function BrokeragesAndAccounts() {
   const unlinkBrokerage = useAppStore((state) => state.unlinkBrokerage);
 
   const [open, setOpen] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [securityDetailsOpen, setSecurityDetailsOpen] = useState(false);
   const [snapTradeSuccess, setSnapTradeSuccess] = useState(false);
   const [calculatedBalances, setCalculatedBalances] = useState({});
   const [balancesLoading, setBalancesLoading] = useState(false);
@@ -161,7 +171,17 @@ export default function BrokeragesAndAccounts() {
 
   // Note: Removed auto-loading of dummy data - users start with empty state
 
-  const handleOpen = () => setOpen(true);
+  // Opens the consent gate; after acceptance, opens AddBrokerageDialog
+  const handleOpen = () => setConsentOpen(true);
+  const handleConsentAccept = (record) => {
+    try {
+      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record));
+    } catch (_) {
+      // localStorage unavailable — proceed anyway
+    }
+    setConsentOpen(false);
+    setOpen(true);
+  };
   const handleClose = () => setOpen(false);
 
   const getBrokerageAccountCount = (brokerageName) => {
@@ -430,126 +450,305 @@ export default function BrokeragesAndAccounts() {
       <CustomBox py={1}>
         {/* Main Content */}
         {brokerages.length === 0 ? (
-          // Enhanced Empty State
-          <Box px={{ xs: 1, md: 2 }}>
+          // ── Goldman-tier empty state ──
+          <Box>
+
+            {/* ── Primary panel ── */}
             <Paper
               elevation={0}
               sx={{
-                p: { xs: 4, md: 6 },
-                mb: 4,
-                borderRadius: 4,
-                position: "relative",
+                mb: 0,
+                borderRadius: 0,
+                border: "none",
+                borderTop: "3px solid #0d1b2a",
+                borderBottom: "1px solid #d6d9de",
+                backgroundColor: "#fff",
                 overflow: "hidden",
-                border: "1px solid",
-                borderColor: "divider",
-                boxShadow: 4,
-                background: (theme) =>
-                  `linear-gradient(135deg, ${theme.palette.primary.main}08, ${theme.palette.primary.dark}10)`,
               }}
             >
-              <Stack spacing={4} position="relative">
-                <Typography
-                  variant="body2"
-                  color="text.primary"
-                  sx={{ maxWidth: 960, lineHeight: 1.55 }}
-                >
-                  Connect your brokerage to instantly unify holdings across accounts, and see your
-                  proportional share of revenue and profit, and focus decisions on business
-                  value—not stock price volatility. This is your look‑through profits dashboard:
-                  invest like a business owner, not a speculator.
-                </Typography>
-                <Divider sx={{ my: 1 }} />
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={2.5}
-                  alignItems={{ xs: "stretch", sm: "center" }}
-                >
-                  <Button
-                    variant="contained"
-                    size="large"
-                    startIcon={<AddCircleOutlineIcon />}
-                    onClick={handleOpen}
+              {/* ── Section header ── */}
+              <Box
+                sx={{
+                  px: { xs: 4, md: 6 },
+                  pt: 4,
+                  pb: 3.5,
+                  borderBottom: "1px solid #d6d9de",
+                  display: "flex",
+                  alignItems: "flex-end",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 3,
+                }}
+              >
+                <Box>
+                  <Typography
                     sx={{
-                      background: "linear-gradient(90deg,#2e7d32,#43a047)",
-                      fontWeight: 600,
-                      px: 4,
-                      py: 1.8,
-                      fontSize: 16,
-                      borderRadius: 3,
-                      textTransform: "none",
-                      letterSpacing: 0.3,
-                      boxShadow: "0 6px 18px rgba(46,125,50,0.35)",
-                      transition: "all .25s",
-                      color: "#fff",
-                      "& .MuiButton-startIcon svg": { color: "#fff" },
-                      "&:hover": {
-                        background: "linear-gradient(90deg,#25662a,#378a39)",
-                        boxShadow: "0 10px 26px rgba(46,125,50,0.45)",
-                        transform: "translateY(-2px)",
-                      },
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 3,
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      mb: 1,
                     }}
                   >
-                    Connect Brokerage
-                  </Button>
-                  <Stack direction="row" spacing={1} alignItems="center" color="success.main">
-                    <CheckCircleOutlineIcon fontSize="small" />
-                    <Typography variant="body2" color="success.main">
-                      Your financial data remains private and is never stored on external servers.
-                    </Typography>
-                  </Stack>
-                </Stack>
-                {/* Logos grid */}
-                <Box>
-                  <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
-                    SUPPORTED INSTITUTIONS
+                    Brokerage Connection
                   </Typography>
-                  <Grid container spacing={2} mt={0.5}>
-                    {Array.from(new Set(Object.values(bankLogoMap)))
-                      .slice(0, 12)
-                      .map((src) => (
-                        <Grid item xs={4} sm={3} md={2} key={src}>
-                          <Paper
-                            variant="outlined"
-                            sx={{
-                              px: 1,
-                              py: 1,
-                              borderRadius: 3,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              bgcolor: "background.paper",
-                              transition: "all .25s",
-                              height: 90,
-                              position: "relative",
-                              overflow: "hidden",
-                              "&:hover": {
-                                boxShadow: 3,
-                                transform: "translateY(-3px)",
-                              },
-                            }}
-                          >
-                            <Box
-                              component="img"
-                              src={src}
-                              alt="brokerage logo"
-                              sx={{
-                                height: 56,
-                                width: "auto",
-                                maxWidth: "100%",
-                                objectFit: "contain",
-                                display: "block",
-                                // Removed transform scaling to keep all within outline
-                              }}
-                            />
-                          </Paper>
-                        </Grid>
-                      ))}
-                  </Grid>
+                  <Typography
+                    sx={{
+                      fontSize: 26,
+                      fontWeight: 700,
+                      color: "#0d1b2a",
+                      letterSpacing: -0.5,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Connect Your Investment Accounts
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 1.5,
+                      fontSize: 14,
+                      color: "#4b5563",
+                      lineHeight: 1.75,
+                      maxWidth: 580,
+                    }}
+                  >
+                    Aggregate holdings across all brokerages. View proportional earnings,
+                    revenue, and profit — analysed the way institutional investors
+                    approach portfolio construction.
+                  </Typography>
                 </Box>
-              </Stack>
+
+                {/* SnapTrade trust badge */}
+                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.75, flexShrink: 0 }}>
+                  <Typography sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: "#9ca3af", textTransform: "uppercase" }}>
+                    Connectivity Powered By
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, border: "1px solid #d6d9de", backgroundColor: "#f9fafb" }}>
+                    <Box
+                      component="img"
+                      src="https://snaptrade.com/images/snaptrade-logo.svg"
+                      alt="SnapTrade"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.nextSibling.style.display = "inline";
+                      }}
+                      sx={{ height: 22, width: "auto" }}
+                    />
+                    <Typography sx={{ display: "none", fontSize: 13, fontWeight: 700, letterSpacing: 1, color: "#0d1b2a" }}>
+                      SnapTrade
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 10, color: "#9ca3af" }}>
+                    Bank-grade secure connection
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* ── Three pillars ── */}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" },
+                  borderBottom: "1px solid #d6d9de",
+                }}
+              >
+                {[
+                  {
+                    num: "01",
+                    heading: "Unified Portfolio View",
+                    body: "All accounts — RRSP, TFSA, margin, IRA, 401(k) — consolidated into a single analytical view.",
+                  },
+                  {
+                    num: "02",
+                    heading: "Read-Only Access",
+                    body: "No trades or transfers can be initiated. Your credentials never leave SnapTrade's secure portal.",
+                  },
+                  {
+                    num: "03",
+                    heading: "Institution-Grade Security",
+                    body: "Encrypted in transit. Revoke access and disconnect any brokerage at any time.",
+                  },
+                ].map(({ num, heading, body }, i) => (
+                  <Box
+                    key={num}
+                    sx={{
+                      px: { xs: 4, md: 6 },
+                      py: 3.5,
+                      borderRight: i < 2 ? "1px solid #d6d9de" : "none",
+                      borderRightWidth: { xs: 0, sm: i < 2 ? 1 : 0 },
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", letterSpacing: 2, mb: 1 }}>
+                      {num}
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0d1b2a", mb: 0.75, letterSpacing: 0.1 }}>
+                      {heading}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.7 }}>
+                      {body}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              {/* ── CTA ── */}
+              <Box
+                sx={{
+                  px: { xs: 4, md: 6 },
+                  py: 3,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  flexWrap: "wrap",
+                  borderBottom: "1px solid #d6d9de",
+                  backgroundColor: "#f9fafb",
+                }}
+              >
+                <Button
+                  variant="contained"
+                  onClick={handleOpen}
+                  sx={{
+                    backgroundColor: "#0d1b2a",
+                    color: "#fff",
+                    fontWeight: 600,
+                    px: 4,
+                    py: 1.3,
+                    fontSize: 13,
+                    borderRadius: 0,
+                    textTransform: "uppercase",
+                    letterSpacing: 1.5,
+                    boxShadow: "none",
+                    "&:hover": {
+                      backgroundColor: "#1a3a5c",
+                      boxShadow: "none",
+                    },
+                  }}
+                >
+                  Connect a Brokerage
+                </Button>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box sx={{ width: "1px", height: 22, backgroundColor: "#d6d9de" }} />
+                  <Typography sx={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
+                    Authorization terms will be presented before connecting.
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* ── Supported institutions ── */}
+              <Box sx={{ px: { xs: 4, md: 6 }, py: 3 }}>
+                <Typography sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: "#9ca3af", textTransform: "uppercase", mb: 2 }}>
+                  Supported Institutions
+                </Typography>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25, alignItems: "center" }}>
+                  {Array.from(new Set(Object.values(bankLogoMap)))
+                    .slice(0, 14)
+                    .map((src) => (
+                      <Box
+                        key={src}
+                        sx={{
+                          height: 52,
+                          width: 96,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "1px solid #e5e7eb",
+                          backgroundColor: "#fff",
+                          p: 1,
+                        }}
+                      >
+                        <Box
+                          component="img"
+                          src={src}
+                          alt="institution"
+                          sx={{ height: 32, width: "auto", maxWidth: 82, objectFit: "contain" }}
+                        />
+                      </Box>
+                    ))}
+                </Box>
+              </Box>
+            </Paper>
+
+            {/* ── Security & Data Handling panel ── */}
+            <Paper
+              elevation={0}
+              sx={{
+                mb: 0,
+                borderRadius: 0,
+                border: "none",
+                borderTop: "1px solid #d6d9de",
+                borderBottom: "1px solid #d6d9de",
+                backgroundColor: "#fff",
+                overflow: "hidden",
+              }}
+            >
+              {/* Header */}
+              <Box
+                sx={{
+                  px: { xs: 4, md: 6 },
+                  py: 2,
+                  borderBottom: "1px solid #d6d9de",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#0d1b2a", textTransform: "uppercase" }}>
+                  Security &amp; Data Handling
+                </Typography>
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={() => setSecurityDetailsOpen(true)}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 600,
+                    color: "#1a3a5c",
+                    fontSize: 12,
+                    px: 0,
+                    minWidth: 0,
+                    "&:hover": { background: "none", textDecoration: "underline" },
+                  }}
+                >
+                  View full details →
+                </Button>
+              </Box>
+
+              {/* Four items as a clean table-like row grid */}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                }}
+              >
+                {[
+                  ["Credential Security", "Authentication occurs inside SnapTrade's secure portal. This platform never receives, stores, or transmits your brokerage username or password."],
+                  ["Read-Only Access", "Holdings, balances, and transactions are retrieved in read-only mode. No trades or transfers can be executed through this platform."],
+                  ["Local Device Storage", "Dashboard data is stored in your browser to power the interface. It remains on your device and is not uploaded to our servers."],
+                  ["Platform Independence", "The Stock Owner's Report is not affiliated with, sponsored by, or endorsed by any brokerage or financial institution."],
+                ].map(([heading, body], i) => (
+                  <Box
+                    key={heading}
+                    sx={{
+                      px: { xs: 4, md: 6 },
+                      py: 2.5,
+                      borderBottom: i < 2 ? "1px solid #d6d9de" : "none",
+                      borderRight: i % 2 === 0 ? { xs: "none", sm: "1px solid #d6d9de" } : "none",
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#0d1b2a", letterSpacing: 0.3, mb: 0.5 }}>
+                      {heading}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.7 }}>
+                      {body}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Paper>
           </Box>
         ) : (
+          <>
           <Paper
             elevation={0}
             sx={{
@@ -818,9 +1017,100 @@ export default function BrokeragesAndAccounts() {
                 Connect Brokerage
               </Button>
             </Box>
+            <Box px={{ xs: 1.5, sm: 2.25 }} pb={1.5}>
+              <Typography variant="caption" color="text.secondary">
+                Before connecting, you&rsquo;ll review and accept key privacy and authorization
+                terms.
+              </Typography>
+            </Box>
           </Paper>
+
+          {/* Security & Data Handling card - filled state */}
+          <Paper
+            elevation={0}
+            sx={{
+              mt: 2,
+              borderRadius: 0,
+              border: "none",
+              borderTop: "1px solid #d6d9de",
+              borderBottom: "1px solid #d6d9de",
+              backgroundColor: "#fff",
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              sx={{
+                px: { xs: 4, md: 6 },
+                py: 2,
+                borderBottom: "1px solid #d6d9de",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 3, color: "#0d1b2a", textTransform: "uppercase" }}>
+                Security &amp; Data Handling
+              </Typography>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setSecurityDetailsOpen(true)}
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 600,
+                  color: "#1a3a5c",
+                  fontSize: 12,
+                  px: 0,
+                  minWidth: 0,
+                  "&:hover": { background: "none", textDecoration: "underline" },
+                }}
+              >
+                View full details →
+              </Button>
+            </Box>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+              }}
+            >
+              {[
+                ["Credential Security", "Authentication occurs inside SnapTrade's secure portal. This platform never receives, stores, or transmits your brokerage username or password."],
+                ["Read-Only Access", "Holdings, balances, and transactions are retrieved in read-only mode. No trades or transfers can be executed through this platform."],
+                ["Local Device Storage", "Dashboard data is stored in your browser to power the interface. It remains on your device and is not uploaded to our servers."],
+                ["Platform Independence", "The Stock Owner's Report is not affiliated with, sponsored by, or endorsed by any brokerage or financial institution."],
+              ].map(([heading, body], i) => (
+                <Box
+                  key={heading}
+                  sx={{
+                    px: { xs: 4, md: 6 },
+                    py: 2.5,
+                    borderBottom: i < 2 ? "1px solid #d6d9de" : "none",
+                    borderRight: i % 2 === 0 ? { xs: "none", sm: "1px solid #d6d9de" } : "none",
+                  }}
+                >
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#0d1b2a", letterSpacing: 0.3, mb: 0.5 }}>
+                    {heading}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.7 }}>
+                    {body}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          </Paper>
+          </>
         )}
       </CustomBox>
+      <ConsentModal
+        open={consentOpen}
+        onAccept={handleConsentAccept}
+        onCancel={() => setConsentOpen(false)}
+      />
+      <SecurityDetailsModal
+        open={securityDetailsOpen}
+        onClose={() => setSecurityDetailsOpen(false)}
+      />
       <AddBrokerageDialog
         open={open}
         onClose={() => setOpen(false)}
