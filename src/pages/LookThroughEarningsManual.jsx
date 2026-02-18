@@ -57,7 +57,7 @@ function StockOwnersReportManual() {
   const exampleBox = {
     backgroundColor: "#f9fafb",
     border: "1px solid #d6d9de",
-    borderRadius: 0,
+    borderRadius: 12,
     padding: "16px 20px",
     margin: "16px 0",
   };
