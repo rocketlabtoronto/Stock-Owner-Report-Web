@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Card, Box } from "@mui/material";
+import { Card, Box, Button } from "@mui/material";
 import CustomBox from "components/CustomBox";
 import CustomTypography from "components/CustomTypography";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 import { useAuthStore } from "stores/useAuthStore";
+import { exportFinancialReportToPdf } from "services/pdfExportService";
 
 import FinancialExplanation from "./FinancialExplanation";
 import ProRataTable from "./ProRataTable";
@@ -27,6 +28,20 @@ function BalanceSheet() {
   }, [allAccountsWithLogos, selectedAccountId]);
 
   const handleSelect = (id) => setSelectedAccountId(id);
+  const selectedAccount = allAccountsWithLogos.find((account) => account.id === selectedAccountId);
+  const selectedAccountLabel = selectedAccount
+    ? `${selectedAccount.brokerageName}${selectedAccount.accountNumber ? ` #${selectedAccount.accountNumber}` : ""}`
+    : "All accounts";
+
+  const handleExportPdf = () => {
+    exportFinancialReportToPdf({
+      title: "Balance Sheet",
+      subtitle: "Proportionate share of each company’s balance sheet from your holdings.",
+      accountLabel: selectedAccountLabel,
+      columns: aggregatedData?.columns || [],
+      rows: aggregatedData?.rows || [],
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -51,10 +66,29 @@ function BalanceSheet() {
             position: "relative",
           }}
         >
-          <Box sx={{ pb: 1.5, mb: 1.5, borderBottom: "1px solid #d6d9de", display: "flex", alignItems: "baseline", gap: 2 }}>
+          <Box sx={{ pb: 1.5, mb: 1.5, borderBottom: "1px solid #d6d9de", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
             <CustomTypography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, color: "#9ca3af", textTransform: "uppercase" }}>
               Balance Sheet
             </CustomTypography>
+            <Button
+              variant="outlined"
+              onClick={handleExportPdf}
+              disabled={loading || !hasRows}
+              sx={{
+                borderRadius: 0,
+                borderColor: "#d6d9de",
+                color: "#0d1b2a",
+                textTransform: "none",
+                fontSize: 12,
+                fontWeight: 600,
+                px: 1.5,
+                py: 0.35,
+                minWidth: 108,
+                "&:hover": { borderColor: "#9ca3af", backgroundColor: "#f9fafb" },
+              }}
+            >
+              Export to PDF
+            </Button>
           </Box>
 
             {/* Account selector */}

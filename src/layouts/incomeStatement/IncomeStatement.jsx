@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Card,
+  Button,
 } from "@mui/material";
 import Box from "@mui/material/Box";
 
@@ -11,6 +12,7 @@ import useAggregatedIncomeStatement from "../incomeStatement/useAggregatedIncome
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 import { useAuthStore } from "stores/useAuthStore";
+import { exportFinancialReportToPdf } from "services/pdfExportService";
 
 function IncomeStatement() {
   const [selectedAccountId, setSelectedAccountId] = useState(null);
@@ -30,6 +32,20 @@ function IncomeStatement() {
   const handleSelect = (id) => setSelectedAccountId(id);
   const hasAccounts = Array.isArray(allAccountsWithLogos) && allAccountsWithLogos.length > 0;
   const hasRows = Array.isArray(aggregatedData?.rows) && aggregatedData.rows.length > 0;
+  const selectedAccount = allAccountsWithLogos.find((account) => account.id === selectedAccountId);
+  const selectedAccountLabel = selectedAccount
+    ? `${selectedAccount.brokerageName}${selectedAccount.accountNumber ? ` #${selectedAccount.accountNumber}` : ""}`
+    : "All accounts";
+
+  const handleExportPdf = () => {
+    exportFinancialReportToPdf({
+      title: "Income Statement",
+      subtitle: "Proportionate share of each company’s income statement from your holdings.",
+      accountLabel: selectedAccountLabel,
+      columns: aggregatedData?.columns || [],
+      rows: aggregatedData?.rows || [],
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -54,10 +70,29 @@ function IncomeStatement() {
             position: "relative",
           }}
         >
-          <Box sx={{ pb: 1.5, mb: 1.5, borderBottom: "1px solid #d6d9de" }}>
+          <Box sx={{ pb: 1.5, mb: 1.5, borderBottom: "1px solid #d6d9de", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
             <CustomTypography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, color: "#9ca3af", textTransform: "uppercase" }}>
               Income Statement
             </CustomTypography>
+            <Button
+              variant="outlined"
+              onClick={handleExportPdf}
+              disabled={loading || !hasRows}
+              sx={{
+                borderRadius: 0,
+                borderColor: "#d6d9de",
+                color: "#0d1b2a",
+                textTransform: "none",
+                fontSize: 12,
+                fontWeight: 600,
+                px: 1.5,
+                py: 0.35,
+                minWidth: 108,
+                "&:hover": { borderColor: "#9ca3af", backgroundColor: "#f9fafb" },
+              }}
+            >
+              Export to PDF
+            </Button>
           </Box>
 
           {hasAccounts && (

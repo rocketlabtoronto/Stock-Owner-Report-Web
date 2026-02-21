@@ -12,6 +12,7 @@
     "url": "git+https://github.com/creativetimofficial/Custom-dashboard-material-ui.git"
   },
   "dependencies": {
+    "@babel/runtime": "^7.28.6",
     "@emotion/cache": "11.11.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
@@ -28,8 +29,11 @@
     "ag-grid-react": "^34.0.2",
     "ajv": "^8.17.1",
     "bcryptjs": "^3.0.2",
+    "canvg": "^4.0.3",
     "chart.js": "3.9.1",
     "chroma-js": "2.4.2",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
     "ng-grid": "^2.0.1",
     "papaparse": "^5.5.3",
     "prop-types": "15.8.1",
