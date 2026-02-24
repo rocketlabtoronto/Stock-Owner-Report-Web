@@ -1,57 +1,154 @@
-# SnapTrade Integration Notes (Current)
+# SnapTrade Workflows (Current Implementation)
 
-## Current Implementation
-- Frontend never calls SnapTrade directly.
-- Frontend calls Supabase Edge Functions:
-  - `snaptrade-register-user-v2`
-  - `login-user`
-  - `snaptrade-accounts`
-- Account/holding normalization is handled in `src/services/snaptradeMappingService.js`.
-- Broker options shown in UI come from `src/services/snaptradeBrokerAllowlistService.js`.
+This file is the source of truth for brokerage-connect behavior through SnapTrade.
 
-## Workflow #3 (Implemented)
-1. User starts connect in `SnapTradeConnectModal`.
-2. UI generates transient GUID `userId`.
-3. Calls `snaptrade-register-user-v2` to create SnapTrade user.
-4. Receives `userSecret`; stores it locally in Zustand (`useAuthStore`) for the active flow.
-5. Calls `login-user` with `userId + userSecret + broker` to get portal link.
-6. User completes SnapTrade portal.
-7. Redirect route (`/snapTradeRedirect`) calls `snaptrade-accounts` and persists mapped accounts/holdings to `useAppStore`.
-8. `snapTradeLastConnectedAt` is persisted and shown in the Brokerages panel.
+## Integration Surface
 
-## Credential Model
-- App credentials (server-side only):
-  - `SNAPTRADE_CLIENT_ID`
-  - `SNAPTRADE_CONSUMER_KEY`
-- Per-session user credentials:
-  - transient `userId`
-  - `userSecret` from SnapTrade registration
+Frontend entry points:
+- `src/layouts/brokeragesAndAccounts/AddBrokerageDialog.js`
+- `src/layouts/brokeragesAndAccounts/SnapTradeConnectModal.js`
+- `src/layouts/SnapTradeRedirect.jsx`
+- `src/services/supabaseService.js`
+- `src/services/snaptradeMappingService.js`
+- `src/services/snaptradeBrokerAllowlistService.js`
 
-Important:
-- Do not expose `SNAPTRADE_CONSUMER_KEY` in browser code.
-- Workflow #3 does not require writing `userSecret` to the `users` table.
+Edge functions used by frontend:
+- `login-user`
+- `snaptrade-accounts`
+- `snaptrade-register-user-v2` (currently remote/deployed target)
 
-## Edge Function Requirements
-Required function secrets:
+Related functions in repo:
+- `snaptrade-register-user` (legacy/local variant)
+- `get-users` (utility/debug)
+
+## End-to-End Flow (Workflow #3)
+
+1. User opens Add Brokerage dialog.
+2. If selected brokerage supports direct integration and has allowlisted broker slug, app opens SnapTrade connect modal.
+3. Modal creates transient GUID `userId`.
+4. Modal calls `registerUser(userId)` -> `functions/v1/snaptrade-register-user-v2`.
+5. On success, modal stores transient `snapTradeUserId` + `snapUserSecret` in `useAuthStore`.
+6. Modal calls `getSnapTradeLoginLink(userId, userSecret, redirectURI, { broker, connectionPortalVersion })` -> `functions/v1/login-user`.
+7. Modal loads returned SnapTrade portal URL in iframe.
+8. On success message event, app navigates to `/snapTradeRedirect`.
+9. Redirect page calls `snaptrade-accounts` with `userId + userSecret`.
+10. Returned account payload is normalized and persisted into app store slices.
+
+## Direct vs Manual Decision Logic
+
+Source:
+- `AddBrokerageDialog`
+- `brokerageData`
+- `SNAPTRADE_BROKER_ALLOWLIST`
+
+A brokerage uses manual upload when any of these are true:
+- integration marked not available
+- integration marked SnapTrade but globally disabled (`REACT_APP_DISABLE_SNAPTRADE=true`)
+- SnapTrade integration selected but no enabled allowlist slug found
+
+Otherwise direct SnapTrade flow is attempted.
+
+## Modal Runtime Behavior
+
+`SnapTradeConnectModal` behavior highlights:
+- has a 5-second fallback timer
+- if direct flow fails or is unavailable, displays manual CSV upload instructions
+- supports debug logging view toggle with Ctrl/Cmd + D
+- parses postMessage events for `SUCCESS`, `ERROR`, `CLOSED`, `ABANDONED`, and redirect status
+- normalizes redirect URI query params before embedding portal URL
+
+## Redirect Sync & Mapping
+
+`SnapTradeRedirect` responsibilities:
+- validates presence of `snapTradeUserId` and `snapUserSecret`
+- invokes `snaptrade-accounts`
+- aggregates holdings and maps accounts using `mapSnapTradeAccountsToSpreadsheet`
+- writes to store:
+  - `snapTradeHoldings`
+  - `snapTradeAccounts`
+  - `brokeragesAndAccounts` (upserted normalized entries)
+  - `accountHoldingsByAccount`
+  - `accountHoldings`
+  - `snapTradeLastConnectedAt`
+
+Mapping rules (`snaptradeMappingService`):
+- infer brokerage bank code from institution name
+- derive account label and dedupe key
+- map positions to holdings as `{ Symbol, Market, Quantity, currentPrice, marketValue }`
+- compute account-level cash/investments/total value representation
+
+## Edge Function Business Logic
+
+### `login-user`
+- validates request body and userId
+- allows either supplied `userSecret` or fallback lookup from `users.snapusersecret`
+- calls SnapTrade `loginSnapTradeUser`
+- rewrites redirect URI params when missing
+- logs detailed step markers to `dashboard.webhook_errors`
+
+### `snaptrade-accounts`
+- validates env + `userId/userSecret`
+- lists user accounts
+- per account:
+  - fetch holdings with retry/backoff
+  - fetch details with retry/backoff
+- returns combined `{ accounts: [...] }`
+- writes diagnostics to `dashboard.webhook_errors`
+
+### `snaptrade-register-user` (legacy/local)
+- requires auth header
+- optional forced delete-then-register behavior
+- writes `snapusersecret` into `users` table when successful
+- normalizes upstream errors
+
+Note:
+- Frontend does not currently call this local function slug.
+
+## Credential & Pairing Model
+
+App-level credentials (edge secrets):
 - `SNAPTRADE_CLIENT_ID`
 - `SNAPTRADE_CONSUMER_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
 
-## Auth Pairing Rule (Critical)
-`userId` and `userSecret` must remain paired exactly as issued. Mismatched pairs cause SnapTrade 401 errors.
+User-level transient credentials:
+- `userId` (generated client-side for flow)
+- `userSecret` (issued by SnapTrade)
+
+Critical rule:
+- `userId` and `userSecret` must remain paired exactly; mismatch yields 401 from SnapTrade.
+
+## Data Persistence Reality
+- SnapTrade account data is fetched from backend after successful portal workflow.
+- After fetch, data is cached in localStorage-backed Zustand (`app-storage`).
+- Transient `userId/userSecret` are persisted in `auth-storage` until cleared.
+
+## Known Operational Realities
+- Frontend references `snaptrade-register-user-v2`, but local repo contains `snaptrade-register-user`.
+- This indicates remote/local function drift; deployments must account for that.
+- Sign-out behavior differs by UI entrypoint, affecting whether cached snaptrade data remains.
 
 ## Common Failure Modes
-- 401 from SnapTrade: mismatched `userId`/`userSecret`.
-- Missing login link: broker slug missing or not allowlisted.
-- Empty holdings: account has no positions yet or connector sync has not completed.
+- 401 during register/list users: wrong SnapTrade app key pair or wrong environment pairing.
+- 401 during account fetch: stale/mismatched `userId`/`userSecret`.
+- Missing login link: broker slug absent or not allowlisted.
+- Direct connect timeout/error: modal falls back to manual CSV upload path.
+- Empty holdings: upstream account has no positions or sync not complete.
 
-## Security Notes
-- Keep SnapTrade calls on Edge Functions only.
-- Log redacted secrets/fingerprints, never full secrets.
-- Treat any local `userSecret` persistence as transient/session continuity behavior.
+## Environment Inputs
 
-## Deploy Edge Functions
+Frontend:
+- `REACT_APP_SUPABASE_URL`
+- `REACT_APP_SUPABASE_ANON_KEY`
+- `REACT_APP_DISABLE_SNAPTRADE`
+
+Edge secrets:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SNAPTRADE_CLIENT_ID`
+- `SNAPTRADE_CONSUMER_KEY`
+- optional `SNAPTRADE_REDIRECT_URI`
+
+## Deployment Commands
 
 ```bash
 supabase login
