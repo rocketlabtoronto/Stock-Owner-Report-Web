@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Stock Owner's Report — Business Requirements Document (Reverse Engineered)</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #dbe2ea;
+      --accent: #0d1b2a;
+      --ok: #065f46;
+      --warn: #92400e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.55 Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 28px auto;
+      padding: 0 18px 24px;
+    }
+    .hero, section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+    h3 { font-size: 15px; margin-top: 14px; }
+    p { margin: 8px 0; }
+    .meta { color: var(--muted); display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 6px 14px; }
+    .pill {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: 6px;
+    }
+    ul { margin: 8px 0 8px 18px; }
+    li { margin: 3px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      background: #fff;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      padding: 8px;
+    }
+    th { background: #f8fafc; font-weight: 700; }
+    code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
+    .note { color: var(--warn); font-weight: 600; }
+    .ok { color: var(--ok); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Business Requirements Document (Reverse Engineered)</h1>
+      <p><strong>Product:</strong> The Stock Owner's Report Web Application</p>
+      <div class="meta">
+        <div><strong>Document Type:</strong> As-Built BRD</div>
+        <div><strong>Source:</strong> Existing codebase behavior</div>
+        <div><strong>Date:</strong> 2026-02-23</div>
+        <div><strong>Status:</strong> Draft for stakeholder review</div>
+      </div>
+      <p style="margin-top:10px">
+        <span class="pill">Public-first routing</span>
+        <span class="pill">Supabase backend</span>
+        <span class="pill">SnapTrade integration</span>
+        <span class="pill">CSV fallback ingestion</span>
+        <span class="pill">Paywall-enabled statements</span>
+      </p>
+    </div>
+
+    <section>
+      <h2>1. Purpose & Context</h2>
+      <p>
+        This BRD captures the business requirements implied by the currently implemented system.
+        The platform consolidates brokerage holdings and converts them into an ownership-weighted view
+        of company financial statements (balance sheet and income statement), with a billing/paywall model
+        and password lifecycle support.
+      </p>
+      <h3>1.1 Business Objectives</h3>
+      <ul>
+        <li>Provide a unified dashboard for multi-brokerage holdings.</li>
+        <li>Offer institutional-style look-through analysis of owned companies.</li>
+        <li>Support both direct brokerage connectivity and manual CSV upload fallback.</li>
+        <li>Enable conversion via paid subscription plans and account activation.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. Scope</h2>
+      <h3>2.1 In Scope (As Implemented)</h3>
+      <ul>
+        <li>Brokerage connect UX with direct SnapTrade and manual upload alternatives.</li>
+        <li>Holdings ingestion, normalization, persistence, and display.</li>
+        <li>Balance sheet and income statement aggregation from holdings + financial datasets.</li>
+        <li>Login/logout flows, password reset and set-password flows.</li>
+        <li>Billing page with Stripe pricing table and Stripe webhook subscription processing.</li>
+      </ul>
+      <h3>2.2 Out of Scope (Current Build)</h3>
+      <ul>
+        <li>Trade execution, transfers, or brokerage-side write operations.</li>
+        <li>Role-based access control and route-level authorization enforcement.</li>
+        <li>Native mobile app support.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Stakeholders & Users</h2>
+      <table>
+        <thead>
+          <tr><th>Role</th><th>Need</th><th>System Outcome</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Retail/Professional Investor</td>
+            <td>View owned-company fundamentals via portfolio holdings</td>
+            <td>Dashboard + prorated statements + account summaries</td>
+          </tr>
+          <tr>
+            <td>Business Operator / Founder</td>
+            <td>Acquire subscribers and provision accounts</td>
+            <td>Stripe billing + webhook-driven user upsert + activation email</td>
+          </tr>
+          <tr>
+            <td>Support / Operations</td>
+            <td>Troubleshoot integration issues</td>
+            <td>Webhook error logging and user-visible fallback paths</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. Functional Requirements (FR)</h2>
+
+      <h3>FR-A: Access, Login, and Session</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance Criteria</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>FR-A1</td>
+            <td>The application shall default users to <code>/brokeragesAndAccounts</code>.</td>
+            <td>Root and unknown routes resolve to brokerages page.</td>
+          </tr>
+          <tr>
+            <td>FR-A2</td>
+            <td>The system shall authenticate login via <code>public.users</code> password hash comparison.</td>
+            <td>Valid credentials create local user session state in auth store.</td>
+          </tr>
+          <tr>
+            <td>FR-A3</td>
+            <td>The system shall enforce subscription recency checks at login.</td>
+            <td>Expired subscriptions are denied with renew CTA and no session set.</td>
+          </tr>
+          <tr>
+            <td>FR-A4</td>
+            <td>The system shall persist auth context in browser local storage.</td>
+            <td><code>auth-storage</code> retains user + SnapTrade transient context.</td>
+          </tr>
+          <tr>
+            <td>FR-A5</td>
+            <td>The system shall provide logout actions from multiple UI entry points.</td>
+            <td>Sidenav sign out clears auth and app cache; navbar logout clears auth only (as-built).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>FR-B: Password Lifecycle</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance Criteria</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>FR-B1</td>
+            <td>The system shall allow users to request a password setup/reset email.</td>
+            <td>Valid email request triggers server-side reset-link generation and email send flow.</td>
+          </tr>
+          <tr>
+            <td>FR-B2</td>
+            <td>The system shall generate time-limited password tokens.</td>
+            <td>Tokens stored/upserted with 30-minute expiry in <code>password_reset_tokens</code>.</td>
+          </tr>
+          <tr>
+            <td>FR-B3</td>
+            <td>The system shall support password set by token.</td>
+            <td>Valid token updates <code>users.password_hash</code>; used token deleted.</td>
+          </tr>
+          <tr>
+            <td>FR-B4</td>
+            <td>The system shall support activation mode messaging.</td>
+            <td><code>mode=activation</code> changes page copy while using same set-password backend.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>FR-C: Brokerage Connectivity (SnapTrade + Manual)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance Criteria</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>FR-C1</td>
+            <td>The system shall present supported brokerages by country.</td>
+            <td>User can select Canada/United States and choose a brokerage tile.</td>
+          </tr>
+          <tr>
+            <td>FR-C2</td>
+            <td>The system shall determine direct vs manual path from integration availability, feature flag, and allowlist.</td>
+            <td>Unsupported/disabled/unallowlisted brokerages open manual upload modal.</td>
+          </tr>
+          <tr>
+            <td>FR-C3</td>
+            <td>The system shall create transient SnapTrade user context for direct connect.</td>
+            <td>Generates transient user ID, obtains user secret, requests login link, opens portal iframe.</td>
+          </tr>
+          <tr>
+            <td>FR-C4</td>
+            <td>The system shall process SnapTrade completion events.</td>
+            <td>Success event redirects to sync route; errors trigger fallback/manual guidance.</td>
+          </tr>
+          <tr>
+            <td>FR-C5</td>
+            <td>The system shall provide timed fallback to manual upload when direct connect does not initialize quickly.</td>
+            <td>Fallback UI appears after timeout with template guidance and upload controls.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>FR-D: Manual CSV Ingestion</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance Criteria</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>FR-D1</td>
+            <td>The system shall parse broker CSVs into account metadata and holdings.</td>
+            <td>Parses first table key-values and second table Symbol/Market/Quantity rows.</td>
+          </tr>
+          <tr>
+            <td>FR-D2</td>
+            <td>The system shall normalize and store parsed account holdings.</td>
+            <td>Writes to brokerages/accounts slices and per-account holdings maps.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>FR-E: Statement Analytics</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance Criteria</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>FR-E1</td>
+            <td>The system shall aggregate balance sheet and income statement metrics per holding.</td>
+            <td>Uses latest financial tag values and share-based prorating formula.</td>
+          </tr>
+          <tr>
+            <td>FR-E2</td>
+            <td>The system shall compute ownership-share representation.</td>
+            <td>Displays ratio format (e.g., 1 in X) when shares outstanding is available.</td>
+          </tr>
+          <tr>
+            <td>FR-E3</td>
+            <td>The system shall keep rows visible with <code>N/A</code> when data is partial/unavailable.</td>
+            <td>No silent dropping of companies solely due to missing tags.</td>
+          </tr>
+          <tr>
+            <td>FR-E4</td>
+            <td>The system shall enforce market availability constraints for account participation.</td>
+            <td>Only NASDAQ/NYSE holdings count as supported in analysis selectors.</td>
+          </tr>
+          <tr>
+            <td>FR-E5</td>
+            <td>The system shall provide PDF export of current statement view.</td>
+            <td>Export action includes title/subtitle/account label/rows in generated PDF.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>FR-F: Monetization & Provisioning</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance Criteria</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>FR-F1</td>
+            <td>The system shall display Stripe pricing table in Billing page.</td>
+            <td>Pricing table renders via configured pricing table and publishable key.</td>
+          </tr>
+          <tr>
+            <td>FR-F2</td>
+            <td>The system shall process successful Stripe invoice events.</td>
+            <td>Webhook validates signature and handles <code>invoice.payment_succeeded</code>.</td>
+          </tr>
+          <tr>
+            <td>FR-F3</td>
+            <td>The system shall upsert user subscription profile by customer email.</td>
+            <td>Writes/updates email, phone, interval, and payment timestamp in users table.</td>
+          </tr>
+          <tr>
+            <td>FR-F4</td>
+            <td>The system shall send activation email after successful subscription processing.</td>
+            <td>Email contains tokenized link with activation mode parameter.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>5. Workflow Definitions</h2>
+      <h3>5.1 Brokerage Connection Workflow</h3>
+      <ol>
+        <li>User opens Connect Brokerage dialog.</li>
+        <li>System evaluates direct/manual eligibility.</li>
+        <li>If direct: register transient user, get portal URL, launch iframe, await completion events.</li>
+        <li>On success: redirect to sync route and fetch account data from backend.</li>
+        <li>Map and persist account/holdings slices; timestamp connection.</li>
+        <li>If direct fails/times out: display manual upload fallback.</li>
+      </ol>
+
+      <h3>5.2 Statement Generation Workflow</h3>
+      <ol>
+        <li>Resolve selected/default account and holdings set.</li>
+        <li>For each symbol, retrieve financial rows.</li>
+        <li>Pick latest values by required tags.</li>
+        <li>Compute prorated metrics per position quantity.</li>
+        <li>Render rows with paywall behavior based on login state.</li>
+      </ol>
+
+      <h3>5.3 Password Reset Workflow</h3>
+      <ol>
+        <li>User requests reset link with email.</li>
+        <li>Backend creates/upserts token and sends email.</li>
+        <li>User opens tokenized link and submits new password.</li>
+        <li>Backend validates token, updates password hash, removes token.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>6. Data Requirements</h2>
+      <table>
+        <thead><tr><th>Entity/Table</th><th>Usage</th><th>Key Fields Used</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>users</code> (public)</td>
+            <td>Login validation, subscription, password update, webhook upsert</td>
+            <td>email, password_hash, subscription_interval, last_payment_at, phone</td>
+          </tr>
+          <tr>
+            <td><code>financials</code></td>
+            <td>Statement aggregation source</td>
+            <td>ticker, tag, value, fy_end_date</td>
+          </tr>
+          <tr>
+            <td><code>stock_prices</code></td>
+            <td>Brokerage page balance calculations</td>
+            <td>symbol, price/latest_day</td>
+          </tr>
+          <tr>
+            <td><code>password_reset_tokens</code></td>
+            <td>Password lifecycle token store</td>
+            <td>email, token, expires_at</td>
+          </tr>
+          <tr>
+            <td><code>webhook_errors</code></td>
+            <td>Operational diagnostics for edge function steps</td>
+            <td>event_type, email, step, error_message, timestamp</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>7. Non-Functional Requirements (NFR)</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>As-Built Evidence</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>NFR-1</td>
+            <td>Client shall provide responsive, user-friendly fallback when direct brokerage connect fails.</td>
+            <td>SnapTrade modal timeout + manual upload workflow.</td>
+          </tr>
+          <tr>
+            <td>NFR-2</td>
+            <td>Integration calls shall be server-side for sensitive third-party credentials.</td>
+            <td>SnapTrade API calls occur in edge functions.</td>
+          </tr>
+          <tr>
+            <td>NFR-3</td>
+            <td>System shall expose operational logging for support diagnostics.</td>
+            <td>webhook_errors logging from login-user and snaptrade-accounts functions.</td>
+          </tr>
+          <tr>
+            <td>NFR-4</td>
+            <td>Session continuity shall persist across browser refreshes.</td>
+            <td>Zustand persist to localStorage for auth/app stores.</td>
+          </tr>
+          <tr>
+            <td>NFR-5</td>
+            <td>Paywall behavior shall preserve partial product preview for conversion.</td>
+            <td>First 5 rows visible to guests, remaining blurred with billing CTA.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>8. Assumptions, Dependencies, and Constraints</h2>
+      <h3>8.1 Assumptions</h3>
+      <ul>
+        <li>Supabase endpoints and edge function secrets are correctly provisioned.</li>
+        <li>SnapTrade credentials and broker slug mappings are valid for target environment.</li>
+        <li>Stripe pricing table and webhook secrets are configured.</li>
+      </ul>
+      <h3>8.2 External Dependencies</h3>
+      <ul>
+        <li>Supabase (REST + Edge Functions)</li>
+        <li>SnapTrade API + portal messaging</li>
+        <li>Stripe pricing table + webhooks</li>
+        <li>Postmark email delivery</li>
+      </ul>
+      <h3>8.3 Constraints</h3>
+      <ul>
+        <li>Current market-support gating only includes NYSE/NASDAQ in statement flows.</li>
+        <li>Current login model is custom table-based, not standard Supabase Auth sign-in.</li>
+        <li>localStorage is an active persistence mechanism for account and session context.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>9. Known Gaps / As-Built Risks</h2>
+      <ul>
+        <li><span class="note">Logout inconsistency:</span> Sidenav Sign Out clears app cache; top-navbar Logout does not.</li>
+        <li><span class="note">Function drift:</span> frontend references <code>snaptrade-register-user-v2</code> while local repo contains <code>snaptrade-register-user</code>.</li>
+        <li><span class="note">Security posture:</span> encryption key and salt are hardcoded client-side for password crypto workflow.</li>
+        <li><span class="note">Auth model divergence:</span> app mixes custom user-table login with Supabase auth event listeners.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>10. Success Criteria (Business)</h2>
+      <ul>
+        <li>Users can connect at least one brokerage (direct or manual fallback) and see holdings in dashboard.</li>
+        <li>Users can view prorated financial statements derived from holdings with predictable paywall behavior.</li>
+        <li>Paid subscription events provision or update user account records and trigger activation path.</li>
+        <li>Password lifecycle (request link -> set password) completes reliably within token TTL.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>11. Traceability Snapshot (Code-to-Requirement)</h2>
+      <table>
+        <thead><tr><th>Requirement Group</th><th>Primary Code Areas</th></tr></thead>
+        <tbody>
+          <tr><td>FR-A / FR-B</td><td><code>src/layouts/login/*</code>, <code>src/layouts/sendPasswordReset/*</code>, <code>src/layouts/setPassword/*</code>, <code>src/stores/useAuthStore.js</code>, password edge functions</td></tr>
+          <tr><td>FR-C / FR-D</td><td><code>src/layouts/brokeragesAndAccounts/*</code>, <code>src/layouts/SnapTradeRedirect.jsx</code>, <code>src/services/parseBrokerageCsvService.js</code>, SnapTrade edge functions</td></tr>
+          <tr><td>FR-E</td><td><code>src/layouts/balanceSheet/*</code>, <code>src/layouts/incomeStatement/*</code>, <code>src/services/supabaseService.js</code></td></tr>
+          <tr><td>FR-F</td><td><code>src/layouts/billing/*</code>, <code>supabase/functions/stripe-webhook/index.ts</code></td></tr>
+          <tr><td>NFRs / Persistence</td><td><code>src/stores/store.js</code>, <code>src/stores/useAuthStore.js</code>, modal fallback and logging paths</td></tr>
+        </tbody>
+      </table>
+      <p class="ok">This document captures current implemented behavior, not a target-state redesign.</p>
+    </section>
+  </div>
+</body>
+</html>
