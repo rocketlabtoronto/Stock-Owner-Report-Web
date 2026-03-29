@@ -2,8 +2,11 @@ import React, { useState, useEffect } from "react";
 import {
   Card,
   Button,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import Box from "@mui/material/Box";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 
 import CustomTypography from "components/CustomTypography";
 import CustomBox from "components/CustomBox";
@@ -12,10 +15,15 @@ import useAggregatedIncomeStatement from "../incomeStatement/useAggregatedIncome
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 import { useAuthStore } from "stores/useAuthStore";
-import { exportFinancialReportToPdf } from "services/pdfExportService";
+import {
+  exportFinancialReportToHtml,
+  exportFinancialReportToPdf,
+  exportFinancialReportToWord,
+} from "services/pdfExportService";
 
 function IncomeStatement() {
   const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null);
   const { loading, aggregatedData, allAccountsWithLogos } =
     useAggregatedIncomeStatement(selectedAccountId);
   const user = useAuthStore((state) => state.user);
@@ -37,14 +45,27 @@ function IncomeStatement() {
     ? `${selectedAccount.brokerageName}${selectedAccount.accountNumber ? ` #${selectedAccount.accountNumber}` : ""}`
     : "All accounts";
 
-  const handleExportPdf = () => {
-    exportFinancialReportToPdf({
-      title: "Income Statement",
-      subtitle: "Proportionate share of each company’s income statement from your holdings.",
-      accountLabel: selectedAccountLabel,
-      columns: aggregatedData?.columns || [],
-      rows: aggregatedData?.rows || [],
-    });
+  const exportPayload = {
+    title: "Income Statement",
+    subtitle: "Proportionate share of each company’s income statement from your holdings.",
+    accountLabel: selectedAccountLabel,
+    columns: aggregatedData?.columns || [],
+    rows: aggregatedData?.rows || [],
+  };
+
+  const handleOpenExportMenu = (event) => setExportMenuAnchorEl(event.currentTarget);
+  const handleCloseExportMenu = () => setExportMenuAnchorEl(null);
+  const isExportMenuOpen = Boolean(exportMenuAnchorEl);
+
+  const handleExport = (format) => {
+    const exporters = {
+      pdf: exportFinancialReportToPdf,
+      word: exportFinancialReportToWord,
+      html: exportFinancialReportToHtml,
+    };
+
+    exporters[format]?.(exportPayload);
+    handleCloseExportMenu();
   };
 
   return (
@@ -76,8 +97,9 @@ function IncomeStatement() {
             </CustomTypography>
             <Button
               variant="outlined"
-              onClick={handleExportPdf}
+              onClick={handleOpenExportMenu}
               disabled={loading || !hasRows}
+              endIcon={<KeyboardArrowDownIcon />}
               sx={{
                 borderRadius: 0,
                 borderColor: "#d6d9de",
@@ -91,8 +113,19 @@ function IncomeStatement() {
                 "&:hover": { borderColor: "#9ca3af", backgroundColor: "#f9fafb" },
               }}
             >
-              Export to PDF
+              Export
             </Button>
+            <Menu
+              anchorEl={exportMenuAnchorEl}
+              open={isExportMenuOpen}
+              onClose={handleCloseExportMenu}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+            >
+              <MenuItem onClick={() => handleExport("word")}>Export to Word</MenuItem>
+              <MenuItem onClick={() => handleExport("html")}>Export to HTML</MenuItem>
+              <MenuItem onClick={() => handleExport("pdf")}>Export to PDF</MenuItem>
+            </Menu>
           </Box>
 
           {hasAccounts && (

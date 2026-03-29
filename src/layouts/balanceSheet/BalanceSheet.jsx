@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { Card, Box, Button } from "@mui/material";
+import { Card, Box, Button, Menu, MenuItem } from "@mui/material";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import CustomBox from "components/CustomBox";
 import CustomTypography from "components/CustomTypography";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 import { useAuthStore } from "stores/useAuthStore";
-import { exportFinancialReportToPdf } from "services/pdfExportService";
+import {
+  exportFinancialReportToHtml,
+  exportFinancialReportToPdf,
+  exportFinancialReportToWord,
+} from "services/pdfExportService";
 
 import FinancialExplanation from "./FinancialExplanation";
 import ProRataTable from "./ProRataTable";
@@ -13,6 +18,7 @@ import useAggregatedFinancials from "./useAggregatedFinancials";
 
 function BalanceSheet() {
   const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null);
   const { loading, aggregatedData, allAccountsWithLogos } =
     useAggregatedFinancials(selectedAccountId);
   const user = useAuthStore((state) => state.user);
@@ -33,14 +39,27 @@ function BalanceSheet() {
     ? `${selectedAccount.brokerageName}${selectedAccount.accountNumber ? ` #${selectedAccount.accountNumber}` : ""}`
     : "All accounts";
 
-  const handleExportPdf = () => {
-    exportFinancialReportToPdf({
-      title: "Balance Sheet",
-      subtitle: "Proportionate share of each company’s balance sheet from your holdings.",
-      accountLabel: selectedAccountLabel,
-      columns: aggregatedData?.columns || [],
-      rows: aggregatedData?.rows || [],
-    });
+  const exportPayload = {
+    title: "Balance Sheet",
+    subtitle: "Proportionate share of each company’s balance sheet from your holdings.",
+    accountLabel: selectedAccountLabel,
+    columns: aggregatedData?.columns || [],
+    rows: aggregatedData?.rows || [],
+  };
+
+  const handleOpenExportMenu = (event) => setExportMenuAnchorEl(event.currentTarget);
+  const handleCloseExportMenu = () => setExportMenuAnchorEl(null);
+  const isExportMenuOpen = Boolean(exportMenuAnchorEl);
+
+  const handleExport = (format) => {
+    const exporters = {
+      pdf: exportFinancialReportToPdf,
+      word: exportFinancialReportToWord,
+      html: exportFinancialReportToHtml,
+    };
+
+    exporters[format]?.(exportPayload);
+    handleCloseExportMenu();
   };
 
   return (
@@ -72,8 +91,9 @@ function BalanceSheet() {
             </CustomTypography>
             <Button
               variant="outlined"
-              onClick={handleExportPdf}
+              onClick={handleOpenExportMenu}
               disabled={loading || !hasRows}
+              endIcon={<KeyboardArrowDownIcon />}
               sx={{
                 borderRadius: 0,
                 borderColor: "#d6d9de",
@@ -87,8 +107,19 @@ function BalanceSheet() {
                 "&:hover": { borderColor: "#9ca3af", backgroundColor: "#f9fafb" },
               }}
             >
-              Export to PDF
+              Export
             </Button>
+            <Menu
+              anchorEl={exportMenuAnchorEl}
+              open={isExportMenuOpen}
+              onClose={handleCloseExportMenu}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+            >
+              <MenuItem onClick={() => handleExport("word")}>Export to Word</MenuItem>
+              <MenuItem onClick={() => handleExport("html")}>Export to HTML</MenuItem>
+              <MenuItem onClick={() => handleExport("pdf")}>Export to PDF</MenuItem>
+            </Menu>
           </Box>
 
             {/* Account selector */}
