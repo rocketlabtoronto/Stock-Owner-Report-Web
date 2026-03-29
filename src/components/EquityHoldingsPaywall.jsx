@@ -9,7 +9,6 @@ import Button from "@mui/material/Button";
 
 const resolveHoldings = (account) => {
   if (Array.isArray(account?.holdings)) return account.holdings;
-  if (Array.isArray(account?.accountHoldings)) return account.accountHoldings;
   return [];
 };
 
@@ -42,13 +41,11 @@ const parseHoldingMarketValue = (holding) => {
 
 export default function EquityHoldingsPaywall({ sx = {} }) {
   const navigate = useNavigate();
-  const brokeragesAndAccounts = useAppStore((state) => state.brokeragesAndAccounts);
-  const snapTradeAccounts = useAppStore((state) => state.snapTradeAccounts);
+  const accounts = useAppStore((state) => state.accounts);
 
-  const allAccounts = [
-    ...(Array.isArray(brokeragesAndAccounts) ? brokeragesAndAccounts : []),
-    ...(Array.isArray(snapTradeAccounts) ? snapTradeAccounts : []),
-  ].filter((account) => resolveHoldings(account).length > 0);
+  const allAccounts = (Array.isArray(accounts) ? accounts : []).filter(
+    (account) => resolveHoldings(account).length > 0
+  );
 
   const dedupedAccounts = Array.from(
     allAccounts.reduce((map, account) => {

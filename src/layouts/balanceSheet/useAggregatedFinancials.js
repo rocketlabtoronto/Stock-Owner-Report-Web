@@ -34,14 +34,13 @@ function useAggregatedFinancials(selectedAccountId = null) {
   });
   const [loading, setLoading] = useState(true);
 
-  const portfolioHoldings = useAppStore((state) => state.accountHoldings) || [];
-  const holdingsByAccount = useAppStore((state) => state.accountHoldingsByAccount) || {};
-  const brokeragesAndAccounts = useAppStore((state) => state.brokeragesAndAccounts) || [];
+  const accounts = useAppStore((state) => state.accounts) || [];
+  const resolveHoldings = (item) => item.holdings || [];
 
-  const accountEntries = (Array.isArray(brokeragesAndAccounts) ? brokeragesAndAccounts : [])
+  const accountEntries = (Array.isArray(accounts) ? accounts : [])
     .map((item) => {
       const accountRaw = String(item.Account || "");
-      const holdings = holdingsByAccount[accountRaw] || item.holdings || item.accountHoldings || [];
+      const holdings = resolveHoldings(item);
       return { item, accountRaw, holdings };
     });
 
@@ -63,11 +62,11 @@ function useAggregatedFinancials(selectedAccountId = null) {
     };
   });
 
-  // If top-level holdings are empty, derive a flattened list from brokeragesAndAccounts
+  // Derive a flattened portfolio view from the canonical accounts collection.
   const availableHoldings = allAccountsWithLogos
     .filter((account) => account.isAvailable)
     .flatMap((account) => account.holdings || []);
-  const defaultHoldings = portfolioHoldings?.length ? portfolioHoldings : availableHoldings;
+  const defaultHoldings = availableHoldings;
 
   useEffect(() => {
     async function loadAggregatedFinancials() {
@@ -80,15 +79,12 @@ function useAggregatedFinancials(selectedAccountId = null) {
         const resolvedAccountId = selectedAccountId || firstAvailableAccount?.id || null;
 
         const targetHoldings = resolvedAccountId
-          ? holdingsByAccount[resolvedAccountId] ||
-            allAccountsWithLogos.find((account) => account.id === resolvedAccountId)?.holdings ||
+          ? allAccountsWithLogos.find((account) => account.id === resolvedAccountId)?.holdings ||
             []
           : defaultHoldings;
 
         console.log("=== Balance Sheet Debug ===");
-        console.log("portfolioHoldings:", portfolioHoldings);
-        console.log("brokeragesAndAccounts:", brokeragesAndAccounts);
-        console.log("holdingsByAccount:", holdingsByAccount);
+        console.log("accounts:", accounts);
         console.log("selectedAccountId:", selectedAccountId);
         console.log("resolvedAccountId:", resolvedAccountId);
         console.log("targetHoldings:", targetHoldings);
@@ -227,7 +223,7 @@ function useAggregatedFinancials(selectedAccountId = null) {
     }
 
     loadAggregatedFinancials();
-  }, [defaultHoldings, holdingsByAccount, brokeragesAndAccounts, selectedAccountId]);
+  }, [defaultHoldings, accounts, selectedAccountId]);
 
   return { loading, aggregatedData, allAccountsWithLogos };
 }

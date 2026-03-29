@@ -37,10 +37,7 @@ export default function SnapTradeRedirect() {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
-  const setSnapTradeAccounts = useAppStore((state) => state.setSnapTradeAccounts);
-  const upsertBrokerageAccount = useAppStore((state) => state.upsertBrokerageAccount);
-  const setAccountHoldings = useAppStore((state) => state.setAccountHoldings);
-  const setAccountHoldingsForAccount = useAppStore((state) => state.setAccountHoldingsForAccount);
+  const upsertAccount = useAppStore((state) => state.upsertAccount);
   const setSnapTradeLastConnectedAt = useAppStore((state) => state.setSnapTradeLastConnectedAt);
 
   useEffect(() => {
@@ -66,22 +63,11 @@ export default function SnapTradeRedirect() {
 
         const result = await fetchSnapTradeAccounts(snapTradeUserId, resolvedUserSecret);
 
-        const { mappedItems, holdingsByAccount, flatHoldings, displayAccounts } =
-          mapSnapTradeAccountsToSpreadsheet(result.accounts);
-
-        setSnapTradeAccounts(displayAccounts);
+        const { mappedItems } = mapSnapTradeAccountsToSpreadsheet(result.accounts);
 
         mappedItems.forEach((item) => {
-          upsertBrokerageAccount({ Account: item.accountRaw, bank: item.bank, holdings: item.holdings });
+          upsertAccount({ Account: item.accountRaw, bank: item.bank, holdings: item.holdings });
         });
-
-        Object.entries(holdingsByAccount).forEach(([accountId, holdings]) => {
-          setAccountHoldingsForAccount(accountId, holdings);
-        });
-
-        if (flatHoldings.length > 0) {
-          setAccountHoldings(flatHoldings);
-        }
 
         setSnapTradeLastConnectedAt(new Date().toISOString());
 
@@ -97,10 +83,7 @@ export default function SnapTradeRedirect() {
   }, [
     snapTradeUserId,
     userSecret,
-    setSnapTradeAccounts,
-    upsertBrokerageAccount,
-    setAccountHoldings,
-    setAccountHoldingsForAccount,
+    upsertAccount,
     setSnapTradeLastConnectedAt,
     navigate,
   ]);

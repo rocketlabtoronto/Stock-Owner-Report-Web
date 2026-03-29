@@ -29,15 +29,14 @@ const resolveAvailability = (holdings) => {
 function useAggregatedIncomeStatement(selectedAccountId = null) {
   const [aggregatedData, setAggregatedData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const portfolioHoldings = useAppStore((state) => state.accountHoldings) || [];
-  const holdingsByAccount = useAppStore((state) => state.accountHoldingsByAccount) || {};
-  const brokeragesAndAccounts = useAppStore((state) => state.brokeragesAndAccounts) || [];
+  const accounts = useAppStore((state) => state.accounts) || [];
+  const resolveHoldings = (item) => item.holdings || [];
 
   // Build account list with logos for selector
-  const accountEntries = (Array.isArray(brokeragesAndAccounts) ? brokeragesAndAccounts : [])
+  const accountEntries = (Array.isArray(accounts) ? accounts : [])
     .map((item) => {
       const accountRaw = String(item.Account || "");
-      const holdings = holdingsByAccount[accountRaw] || item.holdings || item.accountHoldings || [];
+      const holdings = resolveHoldings(item);
       return { item, accountRaw, holdings };
     });
 
@@ -63,7 +62,7 @@ function useAggregatedIncomeStatement(selectedAccountId = null) {
   const availableHoldings = allAccountsWithLogos
     .filter((account) => account.isAvailable)
     .flatMap((account) => account.holdings || []);
-  const defaultHoldings = portfolioHoldings?.length ? portfolioHoldings : availableHoldings;
+  const defaultHoldings = availableHoldings;
 
   useEffect(() => {
     async function loadAggregatedIncomeStatement() {
@@ -76,8 +75,7 @@ function useAggregatedIncomeStatement(selectedAccountId = null) {
         const resolvedAccountId = selectedAccountId || firstAvailableAccount?.id || null;
 
         const targetHoldings = resolvedAccountId
-          ? holdingsByAccount[resolvedAccountId] ||
-            allAccountsWithLogos.find((account) => account.id === resolvedAccountId)?.holdings ||
+          ? allAccountsWithLogos.find((account) => account.id === resolvedAccountId)?.holdings ||
             []
           : defaultHoldings;
 
@@ -195,7 +193,7 @@ function useAggregatedIncomeStatement(selectedAccountId = null) {
     }
 
     loadAggregatedIncomeStatement();
-  }, [defaultHoldings, holdingsByAccount, brokeragesAndAccounts, selectedAccountId]);
+  }, [defaultHoldings, accounts, selectedAccountId]);
 
   return { loading, aggregatedData, allAccountsWithLogos };
 }

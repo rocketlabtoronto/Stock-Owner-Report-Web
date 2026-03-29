@@ -55,12 +55,10 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
 
   const user = useAuthStore((s) => s.user);
   const clearUser = useAuthStore((s) => s.clearUser);
-  const brokeragesAndAccounts = useAppStore((s) => s.brokeragesAndAccounts);
-  const snapTradeAccounts = useAppStore((s) => s.snapTradeAccounts);
+  const accounts = useAppStore((s) => s.accounts);
   const resetStorage = useAppStore((s) => s.resetStorage);
   const hasBrokerageConnected =
-    (Array.isArray(brokeragesAndAccounts) && brokeragesAndAccounts.length > 0) ||
-    (Array.isArray(snapTradeAccounts) && snapTradeAccounts.length > 0);
+    Array.isArray(accounts) && accounts.length > 0;
 
   const handleSignOut = () => {
     clearUser();

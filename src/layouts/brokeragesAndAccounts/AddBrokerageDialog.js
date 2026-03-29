@@ -49,11 +49,7 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
     const holdings = result.secondTable || [];
 
     // Persist on the element itself
-    useAppStore.getState().upsertBrokerageAccount({ Account: accountRaw, bank, holdings });
-
-    // Also maintain per-account and flat legacy stores for backward compatibility
-    useAppStore.getState().setAccountHoldingsForAccount(accountId, holdings);
-    useAppStore.getState().setAccountHoldings(holdings);
+    useAppStore.getState().upsertAccount({ Account: accountRaw, bank, holdings });
   };
 
   // For manual upload modal, handle upload

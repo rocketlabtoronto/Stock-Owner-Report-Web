@@ -107,9 +107,7 @@ async function calculateBalanceFromStockPrices(holdings) {
 }
 
 export default function BrokeragesAndAccounts() {
-  const brokeragesAndAccounts = useAppStore((state) => state.brokeragesAndAccounts);
-  const accountHoldingsByAccount = useAppStore((state) => state.accountHoldingsByAccount);
-  const snapTradeAccounts = useAppStore((state) => state.snapTradeAccounts);
+  const accounts = useAppStore((state) => state.accounts);
   const snapTradeLastConnectedAt = useAppStore((state) => state.snapTradeLastConnectedAt);
   const unlinkBrokerage = useAppStore((state) => state.unlinkBrokerage);
 
@@ -124,18 +122,16 @@ export default function BrokeragesAndAccounts() {
   // Calculate balances from financial data
   useEffect(() => {
     async function loadBalances() {
-      if (!Array.isArray(brokeragesAndAccounts) || brokeragesAndAccounts.length === 0) {
+      if (!Array.isArray(accounts) || accounts.length === 0) {
         return;
       }
 
       setBalancesLoading(true);
       const newBalances = {};
 
-      for (const item of brokeragesAndAccounts) {
+      for (const item of accounts) {
         const accountRaw = String(item.Account || "");
-        const holdings = Array.isArray(item.accountHoldings)
-          ? item.accountHoldings
-          : Array.isArray(item.holdings)
+        const holdings = Array.isArray(item.holdings)
           ? item.holdings
           : [];
 
@@ -158,7 +154,7 @@ export default function BrokeragesAndAccounts() {
     }
 
     loadBalances();
-  }, [brokeragesAndAccounts]);
+  }, [accounts]);
 
   // Note: Removed auto-loading of dummy data - users start with empty state
 
@@ -178,16 +174,13 @@ export default function BrokeragesAndAccounts() {
   const getBrokerageAccountCount = (brokerageName) => {
     const normalize = (value) => String(value || "").trim().toLowerCase();
     const target = normalize(brokerageName);
-    const manualCount = Array.isArray(useAppStore.getState().brokeragesAndAccounts)
+    const manualCount = Array.isArray(useAppStore.getState().accounts)
       ? useAppStore
           .getState()
-          .brokeragesAndAccounts.filter((item) => normalize(String(item?.Account || "").split(" - ")[0]) === target)
+          .accounts.filter((item) => normalize(String(item?.Account || "").split(" - ")[0]) === target)
           .length
       : 0;
-    const snapCount = Array.isArray(useAppStore.getState().snapTradeAccounts)
-      ? useAppStore.getState().snapTradeAccounts.filter((item) => normalize(item?.brokerageName) === target).length
-      : 0;
-    return manualCount + snapCount;
+    return manualCount;
   };
 
   const handleUnlinkBrokerage = (brokerageName) => {
@@ -204,8 +197,6 @@ export default function BrokeragesAndAccounts() {
   const resolveHoldings = (account) =>
     Array.isArray(account?.holdings)
       ? account.holdings
-      : Array.isArray(account?.accountHoldings)
-      ? account.accountHoldings
       : [];
   const getDisallowedMarkets = (holdings) => {
     if (!Array.isArray(holdings) || holdings.length === 0) return ["UNKNOWN"];
@@ -223,16 +214,14 @@ export default function BrokeragesAndAccounts() {
 
   const toggleInclude = () => {};
 
-  // Build accounts list purely from brokeragesAndAccounts array
-  const manualAccounts = Array.isArray(brokeragesAndAccounts)
-    ? brokeragesAndAccounts.map((item) => {
+  // Build accounts list from the canonical accounts array.
+  const manualAccounts = Array.isArray(accounts)
+    ? accounts.map((item) => {
         const accountRaw = String(item.Account || "");
         const [namePart, numberPart] = accountRaw.split(" - ");
         const brokerageName = (namePart || "Unknown Brokerage").trim();
         const accountNum = (numberPart || "").trim();
-        const holdings = Array.isArray(item.accountHoldings)
-          ? item.accountHoldings
-          : Array.isArray(item.holdings)
+        const holdings = Array.isArray(item.holdings)
           ? item.holdings
           : [];
 
@@ -291,14 +280,10 @@ export default function BrokeragesAndAccounts() {
     : [];
 
   const hasHoldings = (account) => {
-    const key = String(account?.Account || account?.id || "");
-    const h = accountHoldingsByAccount?.[key];
-    if (Array.isArray(h)) return h.length > 0;
-    const embedded = account?.holdings || account?.accountHoldings;
-    return Array.isArray(embedded) && embedded.length > 0;
+    return Array.isArray(account?.holdings) && account.holdings.length > 0;
   };
 
-  const allAccounts = [...manualAccounts, ...(snapTradeAccounts || [])]
+  const allAccounts = [...manualAccounts]
     .filter((account) => account && (account.brokerageName || account.Account))
     .filter(hasHoldings);
 
