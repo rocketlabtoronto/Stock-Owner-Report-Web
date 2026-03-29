@@ -9,9 +9,7 @@ const PERSISTED_KEYS = [
   "brokeragesAndAccounts",
   "accountHoldings",
   "accountHoldingsByAccount",
-  "accounts",
   "snapTradeAccounts",
-  "snapTradeHoldings",
   "snapTradeLastConnectedAt",
 ];
 
@@ -25,12 +23,10 @@ const resolveHoldings = (account) => {
   return accountHoldings.length ? accountHoldings : asArray(account?.holdings);
 };
 const createEmptyStoreData = () => ({
-  accounts: [],
   accountHoldings: [],
   accountHoldingsByAccount: {},
   brokeragesAndAccounts: [],
   snapTradeAccounts: [],
-  snapTradeHoldings: [],
   snapTradeLastConnectedAt: null,
 });
 const pickPersistedState = (state) =>
@@ -175,15 +171,10 @@ export const useAppStore = create(
           };
         }),
 
-      accounts: [],
-      setAccounts: (accounts) => set({ accounts: applyFakeEquitiesToAccounts(accounts) }),
-
       snapTradeAccounts: [],
-      snapTradeHoldings: [],
       snapTradeLastConnectedAt: null,
       setSnapTradeAccounts: (accounts) =>
         set({ snapTradeAccounts: applyFakeEquitiesToAccounts(accounts) }),
-      setSnapTradeHoldings: (holdings) => set({ snapTradeHoldings: holdings }),
       setSnapTradeLastConnectedAt: (timestamp) => set({ snapTradeLastConnectedAt: timestamp }),
 
       clearData: () => set(createEmptyStoreData()),
@@ -223,7 +214,6 @@ export const useAppStore = create(
             )
           );
 
-          const accounts = asArray(state.accounts).filter((a) => shouldKeepBrokerage(a.brokerageName));
           const snapTradeAccounts = asArray(state.snapTradeAccounts).filter((a) =>
             shouldKeepBrokerage(a.brokerageName)
           );
@@ -233,7 +223,6 @@ export const useAppStore = create(
           return {
             brokeragesAndAccounts,
             accountHoldingsByAccount,
-            accounts,
             snapTradeAccounts,
             accountHoldings,
           };

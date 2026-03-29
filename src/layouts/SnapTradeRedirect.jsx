@@ -38,7 +38,6 @@ export default function SnapTradeRedirect() {
   const [error, setError] = useState("");
 
   const setSnapTradeAccounts = useAppStore((state) => state.setSnapTradeAccounts);
-  const setSnapTradeHoldings = useAppStore((state) => state.setSnapTradeHoldings);
   const upsertBrokerageAccount = useAppStore((state) => state.upsertBrokerageAccount);
   const setAccountHoldings = useAppStore((state) => state.setAccountHoldings);
   const setAccountHoldingsForAccount = useAppStore((state) => state.setAccountHoldingsForAccount);
@@ -66,9 +65,6 @@ export default function SnapTradeRedirect() {
         }
 
         const result = await fetchSnapTradeAccounts(snapTradeUserId, resolvedUserSecret);
-
-        const allHoldings = result.accounts.flatMap((acct) => acct.holdings || []);
-        setSnapTradeHoldings(allHoldings);
 
         const { mappedItems, holdingsByAccount, flatHoldings, displayAccounts } =
           mapSnapTradeAccountsToSpreadsheet(result.accounts);
@@ -102,7 +98,6 @@ export default function SnapTradeRedirect() {
     snapTradeUserId,
     userSecret,
     setSnapTradeAccounts,
-    setSnapTradeHoldings,
     upsertBrokerageAccount,
     setAccountHoldings,
     setAccountHoldingsForAccount,

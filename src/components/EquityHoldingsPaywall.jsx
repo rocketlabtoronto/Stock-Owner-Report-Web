@@ -43,12 +43,10 @@ const parseHoldingMarketValue = (holding) => {
 export default function EquityHoldingsPaywall({ sx = {} }) {
   const navigate = useNavigate();
   const brokeragesAndAccounts = useAppStore((state) => state.brokeragesAndAccounts);
-  const accounts = useAppStore((state) => state.accounts);
   const snapTradeAccounts = useAppStore((state) => state.snapTradeAccounts);
 
   const allAccounts = [
     ...(Array.isArray(brokeragesAndAccounts) ? brokeragesAndAccounts : []),
-    ...(Array.isArray(accounts) ? accounts : []),
     ...(Array.isArray(snapTradeAccounts) ? snapTradeAccounts : []),
   ].filter((account) => resolveHoldings(account).length > 0);
 

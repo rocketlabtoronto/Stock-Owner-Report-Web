@@ -107,10 +107,6 @@ async function calculateBalanceFromStockPrices(holdings) {
 }
 
 export default function BrokeragesAndAccounts() {
-  // Get accounts from Zustand store
-  const accounts = useAppStore((state) => state.accounts);
-  const setAccounts = useAppStore((state) => state.setAccounts);
-  const resetStorage = useAppStore((state) => state.resetStorage);
   const brokeragesAndAccounts = useAppStore((state) => state.brokeragesAndAccounts);
   const accountHoldingsByAccount = useAppStore((state) => state.accountHoldingsByAccount);
   const snapTradeAccounts = useAppStore((state) => state.snapTradeAccounts);
@@ -124,14 +120,6 @@ export default function BrokeragesAndAccounts() {
   const [calculatedBalances, setCalculatedBalances] = useState({});
   const [balancesLoading, setBalancesLoading] = useState(false);
   const [canConnectBrokerage, setCanConnectBrokerage] = useState(false);
-
-  // Clear old dummy data from localStorage on component mount
-  useEffect(() => {
-    if (accounts.length > 0 && brokeragesAndAccounts.length === 0) {
-      // Only clear if we have accounts but no brokeragesAndAccounts (likely dummy data)
-      resetStorage();
-    }
-  }, []);
 
   // Calculate balances from financial data
   useEffect(() => {
@@ -196,13 +184,10 @@ export default function BrokeragesAndAccounts() {
           .brokeragesAndAccounts.filter((item) => normalize(String(item?.Account || "").split(" - ")[0]) === target)
           .length
       : 0;
-    const accountsCount = Array.isArray(useAppStore.getState().accounts)
-      ? useAppStore.getState().accounts.filter((item) => normalize(item?.brokerageName) === target).length
-      : 0;
     const snapCount = Array.isArray(useAppStore.getState().snapTradeAccounts)
       ? useAppStore.getState().snapTradeAccounts.filter((item) => normalize(item?.brokerageName) === target).length
       : 0;
-    return manualCount + accountsCount + snapCount;
+    return manualCount + snapCount;
   };
 
   const handleUnlinkBrokerage = (brokerageName) => {
@@ -236,18 +221,7 @@ export default function BrokeragesAndAccounts() {
     };
   };
 
-  const toggleInclude = (accountId) => {
-    // Check if this is from the accounts array
-    const accountIndex = accounts.findIndex((acc) => acc.id === accountId);
-    if (accountIndex !== -1) {
-      const updatedAccounts = accounts.map((account) =>
-        account.id === accountId ? { ...account, included: !account.included } : account
-      );
-      setAccounts(updatedAccounts);
-    }
-    // Note: For brokeragesAndAccounts and snapTradeAccounts,
-    // you might need separate update functions
-  };
+  const toggleInclude = () => {};
 
   // Build accounts list purely from brokeragesAndAccounts array
   const manualAccounts = Array.isArray(brokeragesAndAccounts)
@@ -324,7 +298,7 @@ export default function BrokeragesAndAccounts() {
     return Array.isArray(embedded) && embedded.length > 0;
   };
 
-  const allAccounts = [...manualAccounts, ...(accounts || []), ...(snapTradeAccounts || [])]
+  const allAccounts = [...manualAccounts, ...(snapTradeAccounts || [])]
     .filter((account) => account && (account.brokerageName || account.Account))
     .filter(hasHoldings);
 
