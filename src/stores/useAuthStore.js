@@ -8,7 +8,10 @@ export const useAuthStore = create(
       snapTradeUserId: null,
       snapUserSecret: null,
       setUser: (user) => set({ user }),
-      clearUser: () => set({ user: null, snapTradeUserId: null, snapUserSecret: null }),
+      setSnapTradeContext: (snapTradeUserId, snapUserSecret) =>
+        set({ snapTradeUserId, snapUserSecret }),
+      clearSnapTradeContext: () => set({ snapTradeUserId: null, snapUserSecret: null }),
+      clearUser: () => set({ user: null }),
     }),
     {
       name: "auth-storage", // name of the item in storage

@@ -39,6 +39,8 @@ export default function SnapTradeConnectModal({
   const [isConnecting, setIsConnecting] = useState(false);
   const [fallbackTimerExpired, setFallbackTimerExpired] = useState(false);
   const [snapTradeCompleted, setSnapTradeCompleted] = useState(false);
+  const setSnapTradeContext = useAuthStore((state) => state.setSnapTradeContext);
+  const clearSnapTradeContext = useAuthStore((state) => state.clearSnapTradeContext);
 
   // Manual upload template lives under /public/template.csv
   const templateUrl = "/template.csv";
@@ -118,12 +120,106 @@ export default function SnapTradeConnectModal({
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   };
 
+  const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+
+  const registerTransientSnapTradeUser = async (userId) => {
+    addDebugLog("info", "Registering transient SnapTrade user", { userId });
+
+    const regResult = await supabaseService.registerUser(userId);
+    const userSecret = regResult?.userSecret || null;
+
+    if (!isNonEmptyString(userSecret)) {
+      addDebugLog("error", "SnapTrade registration failed", { userSecret });
+      throw new Error("Failed to register with SnapTrade. Please try again later.");
+    }
+
+    addDebugLog("info", "Registered SnapTrade userSecret", {
+      userSecret: redactSecret(userSecret),
+    });
+
+    addDebugLog("info", "SnapTrade auth context ready", {
+      userId,
+      userSecret: redactSecret(userSecret),
+    });
+
+    setSnapTradeContext(userId, userSecret);
+    return { userId, userSecret, reusedStoredContext: false };
+  };
+
+  const resolveSnapTradeContext = async () => {
+    const { snapTradeUserId, snapUserSecret } = useAuthStore.getState();
+    const hasStoredUserId = isNonEmptyString(snapTradeUserId);
+    const hasStoredUserSecret = isNonEmptyString(snapUserSecret);
+
+    if (hasStoredUserId && hasStoredUserSecret) {
+      addDebugLog("info", "Reusing stored SnapTrade auth context", {
+        userId: snapTradeUserId,
+        userSecret: redactSecret(snapUserSecret),
+      });
+      return {
+        userId: snapTradeUserId.trim(),
+        userSecret: snapUserSecret.trim(),
+        reusedStoredContext: true,
+      };
+    }
+
+    if (hasStoredUserId || hasStoredUserSecret) {
+      addDebugLog("warn", "Incomplete stored SnapTrade auth context found; generating a new one", {
+        hasStoredUserId,
+        hasStoredUserSecret,
+      });
+      clearSnapTradeContext();
+    } else {
+      addDebugLog("info", "No reusable SnapTrade auth context found; generating a new one");
+    }
+
+    return registerTransientSnapTradeUser(createTransientUserId());
+  };
+
+  const getLoginLinkWithResolvedContext = async (context, frontendRedirectUri) => {
+    try {
+      const loginResult = await supabaseService.getSnapTradeLoginLink(
+        context.userId,
+        context.userSecret,
+        frontendRedirectUri,
+        {
+          broker: brokerSlug,
+          connectionPortalVersion: "v4",
+        }
+      );
+
+      return { loginResult, context };
+    } catch (error) {
+      if (!context.reusedStoredContext) {
+        throw error;
+      }
+
+      addDebugLog("warn", "Stored SnapTrade auth context failed; re-registering and retrying once", {
+        message: error?.message,
+        status: error?.status || error?.response?.status,
+      });
+
+      clearSnapTradeContext();
+      const freshContext = await registerTransientSnapTradeUser(createTransientUserId());
+      const loginResult = await supabaseService.getSnapTradeLoginLink(
+        freshContext.userId,
+        freshContext.userSecret,
+        frontendRedirectUri,
+        {
+          broker: brokerSlug,
+          connectionPortalVersion: "v4",
+        }
+      );
+
+      return { loginResult, context: freshContext };
+    }
+  };
+
   /**
-   * Core SnapTrade flow (Workflow #3):
-   * 1. Generate a transient GUID as SnapTrade userId.
-   * 2. Register this one-time user via v2 registration Edge Function.
-   * 3. Keep userId + userSecret in local persisted store only.
-   * 4. Get the SnapTrade login link and load the portal.
+   * Core SnapTrade flow:
+   * 1. Reuse persisted SnapTrade userId + userSecret if both are available.
+   * 2. Otherwise register a new transient user via v2 registration Edge Function.
+   * 3. Get the SnapTrade login link and load the portal.
    */
   useEffect(() => {
     if (!open) {
@@ -156,19 +252,16 @@ export default function SnapTradeConnectModal({
     }, 5000);
 
     const handleSnapTradeAuth = async () => {
-      const userId = createTransientUserId();
-
       // Reset state each time the modal (re)opens
       setLocalError(null);
       setLoginLink(null);
       setSnapTradeReady(false);
       setDebugLogs([]);
       setCopyStatus("");
-  setSnapTradeCompleted(false);
-    setIsConnecting(true);
+      setSnapTradeCompleted(false);
+      setIsConnecting(true);
 
       addDebugLog("info", "SnapTrade modal opened", {
-        userId,
         brokerageName,
         brokerSlug: brokerSlug || "missing",
       });
@@ -184,29 +277,7 @@ export default function SnapTradeConnectModal({
       }
 
       try {
-        addDebugLog("info", "Registering transient SnapTrade user", { userId });
-
-        const regResult = await supabaseService.registerUser(userId);
-        let userSecret = null;
-        userSecret = regResult?.userSecret || null;
-
-        if (!userSecret) {
-          addDebugLog("error", "SnapTrade registration failed", { userSecret });
-          setLocalError("Failed to register with SnapTrade. Please try again later.");
-          setIsConnecting(false);
-          return;
-        }
-
-        addDebugLog("info", "Registered SnapTrade userSecret", {
-          userSecret: redactSecret(userSecret),
-        });
-
-        // Persist transient SnapTrade auth context client-side only.
-        addDebugLog("info", "SnapTrade auth context ready", {
-          userId,
-          userSecret: redactSecret(userSecret),
-        });
-        useAuthStore.setState({ snapTradeUserId: userId, snapUserSecret: userSecret });
+        const resolvedContext = await resolveSnapTradeContext();
 
         // 5. Fetch login link via Supabase Edge Function to avoid CORS and keep secrets server-side.
         const frontendRedirectUri =
@@ -214,17 +285,14 @@ export default function SnapTradeConnectModal({
             ? "http://localhost:3000/snapTradeRedirect"
             : "https://www.stockownerreport.com/snapTradeRedirect";
         addDebugLog("info", "Requesting SnapTrade login link via Edge Function", {
+          userId: resolvedContext.userId,
+          reusedStoredContext: resolvedContext.reusedStoredContext,
           redirectURI: frontendRedirectUri,
         });
 
-        const loginResult = await supabaseService.getSnapTradeLoginLink(
-          userId,
-          userSecret,
-          frontendRedirectUri,
-          {
-            broker: brokerSlug,
-            connectionPortalVersion: "v4",
-          }
+        const { loginResult, context } = await getLoginLinkWithResolvedContext(
+          resolvedContext,
+          frontendRedirectUri
         );
         const redirectURI =
           loginResult?.redirectURI ||
@@ -246,6 +314,8 @@ export default function SnapTradeConnectModal({
         }
         addDebugLog("info", "SnapTrade login link response", {
           hasRedirectURI: Boolean(redirectURI),
+          userId: context.userId,
+          reusedStoredContext: context.reusedStoredContext,
           redirectURIUsed: loginResult?.redirectURIUsed,
         });
         addDebugLog("info", "SnapTrade login link resolved", {
