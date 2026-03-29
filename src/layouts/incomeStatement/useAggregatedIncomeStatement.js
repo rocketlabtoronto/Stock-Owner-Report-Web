@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import supabaseService from "services/supabaseService";
 import { useAppStore } from "../../stores/store";
 import { logoFromBank } from "../../utils/brokerageLogos";
@@ -33,36 +33,42 @@ function useAggregatedIncomeStatement(selectedAccountId = null) {
   const resolveHoldings = (item) => item.holdings || [];
 
   // Build account list with logos for selector
-  const accountEntries = (Array.isArray(accounts) ? accounts : [])
-    .map((item) => {
+  const accountEntries = useMemo(
+    () => (Array.isArray(accounts) ? accounts : []).map((item) => {
       const accountRaw = String(item.Account || "");
       const holdings = resolveHoldings(item);
       return { item, accountRaw, holdings };
-    });
+    }),
+    [accounts]
+  );
 
-  const allAccountsWithLogos = accountEntries
-    .filter(({ holdings }) => Array.isArray(holdings) && holdings.length > 0)
-    .map(({ item, accountRaw, holdings }) => {
-    const [namePart, numberPart] = accountRaw.split(" - ");
-    const brokerageName = (namePart || "Unknown Brokerage").trim();
-    const accountNumber = (numberPart || "").trim();
-    const availability = resolveAvailability(holdings);
-    return {
-      id: accountRaw,
-      brokerageName,
-      accountNumber,
-      logo: logoFromBank(item.bank),
-      isAvailable: availability.isAvailable,
-      disallowedMarkets: availability.disallowedMarkets,
-      holdings,
-    };
-  });
+  const allAccountsWithLogos = useMemo(
+    () => accountEntries
+      .filter(({ holdings }) => Array.isArray(holdings) && holdings.length > 0)
+      .map(({ item, accountRaw, holdings }) => {
+        const [namePart, numberPart] = accountRaw.split(" - ");
+        const brokerageName = (namePart || "Unknown Brokerage").trim();
+        const accountNumber = (numberPart || "").trim();
+        const availability = resolveAvailability(holdings);
+        return {
+          id: accountRaw,
+          brokerageName,
+          accountNumber,
+          logo: logoFromBank(item.bank),
+          isAvailable: availability.isAvailable,
+          disallowedMarkets: availability.disallowedMarkets,
+          holdings,
+        };
+      }),
+    [accountEntries]
+  );
 
-  // Flatten nested holdings if top-level is empty
-  const availableHoldings = allAccountsWithLogos
-    .filter((account) => account.isAvailable)
-    .flatMap((account) => account.holdings || []);
-  const defaultHoldings = availableHoldings;
+  const defaultHoldings = useMemo(
+    () => allAccountsWithLogos
+      .filter((account) => account.isAvailable)
+      .flatMap((account) => account.holdings || []),
+    [allAccountsWithLogos]
+  );
 
   useEffect(() => {
     async function loadAggregatedIncomeStatement() {

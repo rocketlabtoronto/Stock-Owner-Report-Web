@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 import { AgGridReact } from "ag-grid-react";
 import Box from "@mui/material/Box";
@@ -75,9 +75,9 @@ function ProRataTable({ loading, data, height = 400, paywall }) {
     }
     return value;
   }
-  if (loading) return <p>Loading...</p>;
-  if (!data || !data.columns || !Array.isArray(data.rows))
-    return <p>No financial data available.</p>;
+  const columns = Array.isArray(data?.columns) ? data.columns : [];
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const hasValidData = columns.length > 0 && Array.isArray(data?.rows);
 
   // Define the preferred column order
   const preferredOrder = [
@@ -90,79 +90,97 @@ function ProRataTable({ loading, data, height = 400, paywall }) {
   ];
 
   // Sort columns according to preferred order, then any others
-  const orderedColumns = [
-    ...preferredOrder.map((name) => data.columns.find((col) => col.name === name)).filter(Boolean),
-    ...data.columns.filter((col) => !preferredOrder.includes(col.name)),
-  ];
+  const orderedColumns = useMemo(
+    () => [
+      ...preferredOrder.map((name) => columns.find((col) => col.name === name)).filter(Boolean),
+      ...columns.filter((col) => !preferredOrder.includes(col.name)),
+    ],
+    [columns]
+  );
 
-  const moneyColumnNames = orderedColumns
-    .filter(
-      (col) =>
-        col.name !== "Company" &&
-        col.name !== "Ownership Share" &&
-        data.rows.some((row) => typeof row[col.name] === "string" && row[col.name].startsWith("$"))
-    )
-    .map((col) => col.name);
+  const moneyColumnNames = useMemo(
+    () => orderedColumns
+      .filter(
+        (col) =>
+          col.name !== "Company" &&
+          col.name !== "Ownership Share" &&
+          rows.some((row) => typeof row[col.name] === "string" && row[col.name].startsWith("$"))
+      )
+      .map((col) => col.name),
+    [orderedColumns, rows]
+  );
 
-  const columnDefs = orderedColumns.map((col) => ({
-    headerName: col.name,
-    field: col.name,
-    headerTooltip: col.name,
-    sortable: col.name !== "Company" && col.name !== "Ownership Share", // lock first two columns
-    filter: false,
-    resizable: true,
-    minWidth:
-      col.name === "Company" ? 220 : col.name === "Ownership Share" ? 200 : 140,
-    lockPosition: col.name === "Company" || col.name === "Ownership Share", // lock first two columns
-    suppressMovable: col.name === "Company" || col.name === "Ownership Share", // prevent moving
-    suppressMenu: true,
-    tooltipValueGetter: (params) => (params.value == null ? "" : String(params.value)),
-    cellStyle: (params) => {
-      if (params.node.rowPinned) {
-        return {
-          background: "#fff9c4",
-          fontWeight: "bold",
-          textAlign: moneyColumnNames.includes(col.name) ? "right" : undefined,
-          fontSize: 12.5,
-        };
-      }
-      if (moneyColumnNames.includes(col.name)) {
-        return { textAlign: "right", fontSize: 12.5 };
-      }
-      return { fontSize: 12.5 };
-    },
-  }));
+  const columnDefs = useMemo(
+    () => orderedColumns.map((col) => ({
+      headerName: col.name,
+      field: col.name,
+      headerTooltip: col.name,
+      sortable: col.name !== "Company" && col.name !== "Ownership Share",
+      filter: false,
+      resizable: true,
+      minWidth:
+        col.name === "Company" ? 220 : col.name === "Ownership Share" ? 200 : 140,
+      lockPosition: col.name === "Company" || col.name === "Ownership Share",
+      suppressMovable: col.name === "Company" || col.name === "Ownership Share",
+      suppressMenu: true,
+      tooltipValueGetter: (params) => (params.value == null ? "" : String(params.value)),
+      cellStyle: (params) => {
+        if (params.node.rowPinned) {
+          return {
+            background: "#fff9c4",
+            fontWeight: "bold",
+            textAlign: moneyColumnNames.includes(col.name) ? "right" : undefined,
+            fontSize: 12.5,
+          };
+        }
+        if (moneyColumnNames.includes(col.name)) {
+          return { textAlign: "right", fontSize: 12.5 };
+        }
+        return { fontSize: 12.5 };
+      },
+    })),
+    [orderedColumns, moneyColumnNames]
+  );
 
   // Calculate totals for all numeric columns except Company and Ownership Share
-  const totalRow = {};
-  data.columns.forEach((col) => {
-    if (col.name === "Company" || col.name === "Ownership Share") {
-      totalRow[col.name] = col.name === "Company" ? "Total" : "";
-    } else {
-      totalRow[col.name] = data.rows.reduce((sum, row) => sum + parseMoney(row[col.name]), 0);
-      // Format as money if at least one row is formatted as money
-      const hasMoney = data.rows.some(
-        (row) => typeof row[col.name] === "string" && row[col.name].startsWith("$")
-      );
-      if (hasMoney) {
-        totalRow[col.name] =
-          "$" + totalRow[col.name].toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const totalRow = useMemo(() => {
+    const row = {};
+    columns.forEach((col) => {
+      if (col.name === "Company" || col.name === "Ownership Share") {
+        row[col.name] = col.name === "Company" ? "Total" : "";
+      } else {
+        row[col.name] = rows.reduce((sum, item) => sum + parseMoney(item[col.name]), 0);
+        const hasMoney = rows.some(
+          (item) => typeof item[col.name] === "string" && item[col.name].startsWith("$")
+        );
+        if (hasMoney) {
+          row[col.name] =
+            "$" + row[col.name].toLocaleString("en-US", { maximumFractionDigits: 0 });
+        }
       }
-    }
-  });
+    });
+    return row;
+  }, [columns, rows]);
 
   // Map rows to format Ownership Share
-  const rowData = data.rows.map((row) => {
-    if (row["Ownership Share"]) {
-      return {
-        ...row,
-        ["Ownership Share"]: formatOwnershipShare(row["Ownership Share"]),
-      };
-    }
-    return row;
-  });
+  const rowData = useMemo(
+    () => rows.map((row) => {
+      if (row["Ownership Share"]) {
+        return {
+          ...row,
+          ["Ownership Share"]: formatOwnershipShare(row["Ownership Share"]),
+        };
+      }
+      return row;
+    }),
+    [rows]
+  );
+  const pinnedBottomRowData = useMemo(() => [totalRow], [totalRow]);
 
   const shouldApplyPaywall = Boolean(paywall?.enabled);
+
+  if (loading) return <p>Loading...</p>;
+  if (!hasValidData) return <p>No financial data available.</p>;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: 0, minHeight: 0, width: "100%", ...agGridOverrides }}>
@@ -215,7 +233,7 @@ function ProRataTable({ loading, data, height = 400, paywall }) {
           rowData={rowData}
           columnDefs={columnDefs}
           pagination={false}
-          pinnedBottomRowData={[totalRow]}
+          pinnedBottomRowData={pinnedBottomRowData}
           rowHeight={34}
           tooltipShowDelay={200}
           tooltipHideDelay={2000}
