@@ -3,12 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Stock Owner Report</title>
+    <meta name="description" content="Invest like an owner, not like a speculator." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        var pathname = window.location.pathname;
+        if (pathname === "/" || pathname === "/index.html") {
+          window.location.replace("/landing_page.html");
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

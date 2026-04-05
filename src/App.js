@@ -82,11 +82,9 @@ export default function App() {
         >
           <Routes>
             {getRoutes(routes)}
-            <Route path="/" element={<Navigate to="/brokeragesAndAccounts" />} />
             <Route path="*" element={<Navigate to="/brokeragesAndAccounts" />} />
           </Routes>
         </Box>
-        {/* Always visible sticky footer */}
         <Box
           sx={({ breakpoints, functions: { pxToRem } }) => ({
             background: "#f7f7f5",
@@ -94,7 +92,6 @@ export default function App() {
             py: 2,
             px: 3,
             mt: "auto",
-            // Add left margin to avoid being covered by sidenav
             [breakpoints.up("xl")]: {
               marginLeft: layout === "dashboard" ? (miniSidenav ? pxToRem(120) : pxToRem(274)) : 0,
               transition: "margin-left 0.3s ease",
