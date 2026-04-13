@@ -336,3 +336,12 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.send-password-reset-link-email]
 verify_jwt = false
+
+[functions.snaptrade-register-user-v2]
+verify_jwt = false
+
+[functions.login-user]
+verify_jwt = false
+
+[functions.snaptrade-accounts]
+verify_jwt = false

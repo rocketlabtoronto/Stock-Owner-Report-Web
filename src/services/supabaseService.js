@@ -5,6 +5,8 @@ const headers = {
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
   "Content-Type": "application/json",
+  "Accept-Profile": "dashboard",
+  "Content-Profile": "dashboard",
 };
 
 const buildFilterQuery = (filter = {}) => {

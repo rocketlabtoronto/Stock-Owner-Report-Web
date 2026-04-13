@@ -1,14 +1,27 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Content-Type": "application/json",
+const ALLOWED_ORIGINS = new Set([
+  "https://app.stockownerreport.com",
+  "https://stockownerreport.com",
+  "https://www.stockownerreport.com",
+  "http://localhost:3000",
+]);
+
+const getCorsHeaders = (origin: string | null) => {
+  const allowOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://app.stockownerreport.com";
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    Vary: "Origin",
+    "Content-Type": "application/json",
+  };
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
