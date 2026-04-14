@@ -30,6 +30,23 @@ async function fetchSnapTradeAccounts(userId, userSecret) {
   return data;
 }
 
+async function disconnectSnapTradeUser(userId, userSecret) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Missing Supabase configuration for disconnect-user");
+  }
+
+  const { data, error } = await supabase.functions.invoke("disconnect-user", {
+    body: { userId, userSecret },
+  });
+
+  if (error) {
+    console.error("disconnect-user invoke error:", error);
+    throw new Error(`disconnect-user error: ${error.message || error}`);
+  }
+
+  return data;
+}
+
 export default function SnapTradeRedirect() {
   const navigate = useNavigate();
   const snapTradeUserId = useAuthStore((state) => state.snapTradeUserId);
@@ -42,6 +59,8 @@ export default function SnapTradeRedirect() {
 
   useEffect(() => {
     async function load() {
+      let resolvedUserSecret;
+      let didAttemptSnapTradeAccountsFetch = false;
       try {
         setStatus("loading");
         setError("");
@@ -55,12 +74,13 @@ export default function SnapTradeRedirect() {
           return;
         }
 
-        const resolvedUserSecret = userSecret;
+        resolvedUserSecret = userSecret;
 
         if (!snapTradeUserId || !resolvedUserSecret) {
           throw new Error("Missing SnapTrade connection context. Please reconnect your brokerage.");
         }
 
+        didAttemptSnapTradeAccountsFetch = true;
         const result = await fetchSnapTradeAccounts(snapTradeUserId, resolvedUserSecret);
 
         const { mappedItems } = mapSnapTradeAccountsToSpreadsheet(result.accounts);
@@ -77,6 +97,14 @@ export default function SnapTradeRedirect() {
         console.error("SnapTradeRedirect error:", e);
         setStatus("error");
         setError(e?.message || "Failed to load SnapTrade accounts.");
+      } finally {
+        if (didAttemptSnapTradeAccountsFetch && snapTradeUserId && resolvedUserSecret) {
+          try {
+            await disconnectSnapTradeUser(snapTradeUserId, resolvedUserSecret);
+          } catch (disconnectError) {
+            console.error("SnapTrade disconnect cleanup failed:", disconnectError);
+          }
+        }
       }
     }
     load();
