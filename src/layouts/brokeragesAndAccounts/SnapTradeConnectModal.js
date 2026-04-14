@@ -280,10 +280,7 @@ export default function SnapTradeConnectModal({
         const resolvedContext = await resolveSnapTradeContext();
 
         // 5. Fetch login link via Supabase Edge Function to avoid CORS and keep secrets server-side.
-        const frontendRedirectUri =
-          window.location.origin.includes("localhost")
-            ? "http://localhost:3000/snapTradeRedirect"
-            : "https://www.stockownerreport.com/snapTradeRedirect";
+        const frontendRedirectUri = `${window.location.origin}/snapTradeRedirect`;
         addDebugLog("info", "Requesting SnapTrade login link via Edge Function", {
           userId: resolvedContext.userId,
           reusedStoredContext: resolvedContext.reusedStoredContext,
