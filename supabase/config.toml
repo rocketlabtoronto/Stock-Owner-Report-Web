@@ -345,3 +345,6 @@ verify_jwt = false
 
 [functions.snaptrade-accounts]
 verify_jwt = false
+
+[functions.disconnect-user]
+verify_jwt = false
