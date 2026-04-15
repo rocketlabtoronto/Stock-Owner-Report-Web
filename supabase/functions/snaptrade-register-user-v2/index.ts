@@ -93,10 +93,13 @@ serve(async (req: Request) => {
 
     const { error: persistError } = await supabase
       .from("snaptrade_users")
-      .upsert({
-        user_id: userId,
-        user_secret: userSecret,
-      }, { onConflict: "user_id" });
+      .upsert(
+        {
+          snaptrade_user_id: userId,
+          snaptrade_user_secret: userSecret,
+        },
+        { onConflict: "snaptrade_user_id" }
+      );
 
     if (persistError) {
       return new Response(
