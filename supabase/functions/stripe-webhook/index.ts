@@ -26,7 +26,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const SUPABASE_DB_SCHEMA = Deno.env.get("SUPABASE_DB_SCHEMA") ?? "public";
 const POSTMARK_TOKEN = Deno.env.get("POSTMARK_SERVER_TOKEN") ?? "";
-const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2023-08-16" });
+const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-03-25.dahlia" });
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL").replace(/\/$/, "");
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL");
 // If you call this from the browser, CORS is required.
