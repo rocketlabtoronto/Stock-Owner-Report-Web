@@ -8,6 +8,25 @@ import { supabase } from "../../supabaseClient";
 import { useLocation, useNavigate } from "react-router-dom";
 import { encrypt } from "../../services/encryptionService";
 
+function extractFunctionErrorMessage(error) {
+  if (!error) return "Could not set password.";
+
+  const fallback = error.message || "Could not set password.";
+  const context = error.context;
+
+  if (!context || typeof context.json !== "function") {
+    return fallback;
+  }
+
+  // Supabase FunctionsHttpError exposes the underlying Response in error.context.
+  // Clone it first so parsing does not consume the stream for downstream tooling/loggers.
+  return context
+    .clone()
+    .json()
+    .then((payload) => payload?.error || payload?.message || fallback)
+    .catch(() => fallback);
+}
+
 export default function SetPassword() {
   // Hide sidebar/navbar while on this page
   useEffect(() => {
@@ -92,7 +111,8 @@ export default function SetPassword() {
 
       if (error) {
         console.error("[SetPassword] Step 6 - Edge Function error", error);
-        setError(error.message || "Could not set password.");
+        const resolvedMessage = await extractFunctionErrorMessage(error);
+        setError(resolvedMessage);
         return;
       }
 

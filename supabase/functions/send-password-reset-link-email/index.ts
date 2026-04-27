@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createStructuredLogger } from "../_shared/logging.ts";
 
 /**
  * Purpose:
@@ -66,68 +67,43 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-// Avoid dumping full email into logs; keep it useful but safer.
-function maskEmail(email: string): string {
-  const at = email.indexOf("@");
-  if (at <= 1) return "***";
-  return `${email.slice(0, 2)}***${email.slice(at)}`;
-}
-
-// Avoid dumping full URLs (tokens) into logs; log only host + path.
-function safeUrlForLogs(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return "(invalid-url)";
-  }
-}
-
-serve(async (req) => {
-  const requestId = crypto.randomUUID?.() ?? `${Date.now()}`;
-
-  const log = (step: string, message: string, meta?: Record<string, unknown>) => {
-    if (meta) console.log(`[${requestId}] ${step} - ${message}`, meta);
-    else console.log(`[${requestId}] ${step} - ${message}`);
-  };
-
-  const error = (
-    step: string,
-    message: string,
-    meta?: Record<string, unknown>,
-  ) => {
-    if (meta) console.error(`[${requestId}] ${step} - ${message}`, meta);
-    else console.error(`[${requestId}] ${step} - ${message}`);
-  };
+serve(async (req: Request) => {
+  const logger = createStructuredLogger("send-password-reset-link-email");
 
   // Try/catch over the entire handler (including preflight).
   try {
-    // Step 0: Request received
-    log("Step 0", "Request received", {
+    logger.info("S0", "Receive request to generate and send password reset/setup email", {
       method: req.method,
       origin: req.headers.get("origin") ?? "",
     });
 
     // Step 0.1: Handle CORS preflight (browser requirement)
     if (req.method === "OPTIONS") {
-      log("Step 0.1", "Preflight OPTIONS request - returning 204");
+      logger.info("S1", "Handle browser preflight without sending any email");
       return new Response(null, { status: 204, headers: buildCorsHeaders(req) });
     }
 
     // Step 1: Block calls from unapproved websites
     const originHeader = req.headers.get("origin") ?? "";
     if (originHeader && !ALLOWED_ORIGINS.has(originHeader)) {
-      error("Step 1", "Origin not allowed", { origin: originHeader });
+      logger.error("S2", "Reject reset-email request from unapproved web origin", {
+        origin: originHeader,
+      });
       return json(req, 403, { error: "Origin not allowed" });
     }
-    log("Step 1", "Origin allowed (or server-to-server request)");
+    logger.info("S3", "Origin validation passed for reset-email request", {
+      origin: originHeader,
+    });
 
     // Step 2: Enforce POST only
     if (req.method !== "POST") {
-      error("Step 2", "Method not allowed", { method: req.method });
+      logger.warn("S4", "Reject request with unsupported HTTP method", {
+        expectedMethod: "POST",
+        receivedMethod: req.method,
+      });
       return json(req, 405, { error: "Method not allowed" });
     }
-    log("Step 2", "Method is POST");
+    logger.info("S5", "Method validation passed for reset-email workflow");
 
     // Step 3: Load required environment variables (do NOT log secret values)
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -135,7 +111,7 @@ serve(async (req) => {
     const POSTMARK_TOKEN = Deno.env.get("POSTMARK_SERVER_TOKEN") ?? "";
     const FROM_EMAIL = Deno.env.get("FROM_EMAIL");
 
-    log("Step 3", "Loaded environment variables", {
+    logger.info("S6", "Validate dependencies for token generation and email delivery", {
       hasSupabaseUrl: Boolean(SUPABASE_URL),
       hasServiceRoleKey: Boolean(SERVICE_ROLE_KEY),
       hasPostmarkToken: Boolean(POSTMARK_TOKEN),
@@ -143,7 +119,7 @@ serve(async (req) => {
     });
 
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !POSTMARK_TOKEN) {
-      error("Step 3", "Missing required environment variables", {
+      logger.error("S7", "Stop workflow because required server configuration is missing", {
         hasSupabaseUrl: Boolean(SUPABASE_URL),
         hasServiceRoleKey: Boolean(SERVICE_ROLE_KEY),
         hasPostmarkToken: Boolean(POSTMARK_TOKEN),
@@ -156,21 +132,25 @@ serve(async (req) => {
     }
 
     // Step 4: Parse request body and validate email
-    log("Step 4", "Parsing request body");
-    const payload = (await req.json().catch((e) => {
-      error("Step 4", "Failed to parse JSON body", { message: String(e?.message ?? e) });
+    logger.info("S8", "Validate inbound customer email payload");
+    const payload = (await req.json().catch((e: unknown) => {
+      logger.warn("S9", "Reject request because JSON payload is invalid", {
+        message: String((e as { message?: string })?.message ?? e),
+      });
       return null;
     })) as { email?: unknown } | null;
 
     const email = String(payload?.email ?? "").trim();
     if (!email) {
-      error("Step 4", "Missing email in request body");
+      logger.warn("S10", "Reject request because email is missing", {
+        hasEmail: Boolean(email),
+      });
       return json(req, 400, { error: "Missing email" });
     }
-    log("Step 4", "Email received", { email: maskEmail(email) });
+    logger.info("S11", "Customer email validated for password reset delivery", { email });
 
     // Calling internal function to generate and retrieve tokenized url
-    log("Step 5", "Calling internal function to generate and retrieve tokenized url");
+    logger.info("S12", "Request tokenized password link from internal function", { email });
 
     const adminHeaders: HeadersInit = {
       "Content-Type": "application/json",
@@ -185,28 +165,27 @@ serve(async (req) => {
         headers: adminHeaders,
         body: JSON.stringify({ email }),
       },
-    ).catch((e) => {
-      error("Step 5", "Network error calling internal reset-link function", {
-        message: String(e?.message ?? e),
+    ).catch((e: unknown) => {
+      logger.error("S13", "Internal token service call failed due to network/runtime issue", {
+        message: String((e as { message?: string })?.message ?? e),
       });
       throw e; // jump to catch so we get one consistent failure path
     });
 
-    log("Step 5", "Internal function responded", {
+    logger.info("S14", "Internal token service responded", {
       status: linkResp.status,
       ok: linkResp.ok,
     });
 
-    const linkText = await linkResp.text().catch((e) => {
-      error("Step 5", "Failed reading internal function response body", {
-        message: String(e?.message ?? e),
+    const linkText = await linkResp.text().catch((e: unknown) => {
+      logger.error("S15", "Unable to read internal token response body", {
+        message: String((e as { message?: string })?.message ?? e),
       });
       throw e;
     });
 
     if (!linkResp.ok) {
-      // Log full details server-side; do NOT send internal details to browser.
-      error("Step 5", "Internal reset-link function returned non-OK", {
+      logger.error("S16", "Internal token generation failed; cannot proceed to email delivery", {
         status: linkResp.status,
         bodyPreview: linkText.slice(0, 300),
       });
@@ -214,21 +193,24 @@ serve(async (req) => {
     }
 
     // Step 6: Parse and validate reset URL
-    log("Step 6", "Extracting reset URL from internal response");
+    logger.info("S17", "Parse tokenized URL returned by internal token function", { email });
     const resetUrl = extractResetUrl(linkText);
 
     if (!resetUrl || !isHttpUrl(resetUrl)) {
-      error("Step 6", "Invalid reset URL returned", {
-        resetUrlPreview: safeUrlForLogs(resetUrl),
+      logger.error("S18", "Internal token response did not provide a valid reset URL", {
+        resetUrl,
         bodyPreview: linkText.slice(0, 300),
       });
       return json(req, 500, { error: "Invalid reset link returned" });
     }
 
-    log("Step 6", "Reset URL extracted", { url: safeUrlForLogs(resetUrl) });
+    logger.info("S19", "Valid reset URL prepared for outbound email", {
+      email,
+      url: resetUrl,
+    });
 
     // Step 7: Send email via Postmark
-    log("Step 7", "Sending email via Postmark", { to: maskEmail(email) });
+    logger.info("S20", "Send password reset/setup email via Postmark", { to: email });
 
     const postmarkResp = await fetch("https://api.postmarkapp.com/email", {
       method: "POST",
@@ -272,27 +254,27 @@ body: JSON.stringify({
     `Stock Owner Report Support`,
   MessageStream: "outbound",
 }),
-    }).catch((e) => {
-      error("Step 7", "Network error calling Postmark", {
-        message: String(e?.message ?? e),
+    }).catch((e: unknown) => {
+      logger.error("S21", "Postmark API call failed due to network/runtime issue", {
+        message: String((e as { message?: string })?.message ?? e),
       });
       throw e;
     });
 
-    log("Step 7", "Postmark responded", {
+    logger.info("S22", "Postmark API responded to email send request", {
       status: postmarkResp.status,
       ok: postmarkResp.ok,
     });
 
-    const postmarkText = await postmarkResp.text().catch((e) => {
-      error("Step 7", "Failed reading Postmark response body", {
-        message: String(e?.message ?? e),
+    const postmarkText = await postmarkResp.text().catch((e: unknown) => {
+      logger.error("S23", "Unable to read Postmark response payload", {
+        message: String((e as { message?: string })?.message ?? e),
       });
       throw e;
     });
 
     if (!postmarkResp.ok) {
-      error("Step 7", "Postmark returned non-OK", {
+      logger.error("S24", "Postmark rejected email delivery request", {
         status: postmarkResp.status,
         bodyPreview: postmarkText.slice(0, 300),
       });
@@ -300,12 +282,14 @@ body: JSON.stringify({
     }
 
     // Step 8: Success
-    log("Step 8", "Completed successfully");
+    logger.info("S25", "Reset email workflow completed successfully", {
+      email,
+    });
     return json(req, 200, { success: true });
-  } catch (err) {
+  } catch (err: unknown) {
     // Catch-all failure (ensures we always return CORS-safe JSON)
-    error("Catch", "Unhandled exception", {
-      message: String(err?.message ?? err),
+    logger.error("S99", "Unhandled exception in reset-email workflow", {
+      message: String((err as { message?: string })?.message ?? err),
       // stack can be useful; if undefined, it won’t show
       stack: (err as { stack?: string })?.stack,
     });

@@ -1,8 +1,15 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
+import { createStructuredLogger } from "../_shared/logging.ts";
 
-serve(async (req) => {
+serve(async (req: Request) => {
+  const logger = createStructuredLogger("login-user");
+  logger.info("S0", "Receive request to generate SnapTrade login redirect", {
+    method: req.method,
+    origin: req.headers.get("origin") ?? "",
+  });
+
   // === ENVIRONMENT VARIABLES ===
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -21,13 +28,6 @@ serve(async (req) => {
     db: { schema: "dashboard" },
     auth: { persistSession: false },
   });
-
-  const redact = (value: unknown) => {
-    if (!value) return "missing";
-    const s = String(value);
-    if (s.length <= 8) return "[redacted]";
-    return `${s.slice(0, 4)}…${s.slice(-4)}`;
-  };
 
   /**
    * LoginUserStep: Enumerates steps for login-user Edge Function error logging.
@@ -72,7 +72,10 @@ serve(async (req) => {
 
     if (!res.ok) {
       const text = await res.text();
-      console.error("Webhook logging failed", res.status, text);
+      logger.error("S11", "Failed writing login diagnostic row to webhook_errors table", {
+        status: res.status,
+        body: text,
+      });
     }
   };
 
@@ -86,11 +89,14 @@ serve(async (req) => {
       `Method: ${req.method}, Path: ${url.pathname}`
     );
   } catch (e) {
-    console.error("Failed to log entrypoint event", e);
+    logger.error("S12", "Failed to write entrypoint diagnostic event", {
+      error: e,
+    });
   }
 
   // === HANDLE CORS ===
   if (req.method === "OPTIONS") {
+    logger.info("S1", "Handle preflight request without customer authentication changes");
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
@@ -107,6 +113,9 @@ serve(async (req) => {
     connectionPortalVersion = body.connectionPortalVersion;
     broker = body.broker;
   } catch (e) {
+    logger.warn("S2", "Reject login request because payload JSON is invalid", {
+      expectedFields: ["userId", "userSecret", "redirectURI", "connectionPortalVersion", "broker"],
+    });
     // If parsing fails, log and return error
     await logWebhookError(
       "login-user",
@@ -122,6 +131,7 @@ serve(async (req) => {
 
   // === VALIDATE USER ID ===
   if (!userId) {
+    logger.warn("S3", "Reject login request because user identifier is missing");
     await logWebhookError(
       "login-user",
       "unknown",
@@ -144,11 +154,17 @@ serve(async (req) => {
     redirectURI = fallbackRedirectUri;
   }
 
+  logger.info("S4", "Resolved redirect URI policy for brokerage connection journey", {
+    userId,
+    redirectURI,
+    usedFallbackRedirectUri: redirectURI === fallbackRedirectUri,
+  });
+
   await logWebhookError(
     "login-user",
     userId,
     LoginUserStep.ENV_CHECK,
-    `SNAPTRADE_CLIENT_ID: ${redact(SNAPTRADE_CLIENT_ID)}, SNAPTRADE_CONSUMER_KEY: ${redact(SNAPTRADE_CONSUMER_KEY)}, redirectURI: ${redirectURI}`
+    `SNAPTRADE_CLIENT_ID: ${SNAPTRADE_CLIENT_ID}, SNAPTRADE_CONSUMER_KEY: ${SNAPTRADE_CONSUMER_KEY}, redirectURI: ${redirectURI}`
   );
   const snaptrade = new Snaptrade({
     clientId: SNAPTRADE_CLIENT_ID,
@@ -157,6 +173,9 @@ serve(async (req) => {
 
   let secret = userSecret;
   if (!secret) {
+    logger.info("S5", "Load stored SnapTrade secret because caller did not provide one", {
+      userId,
+    });
     const { data, error } = await supabase
       .from("users")
       .select("snapusersecret")
@@ -164,6 +183,10 @@ serve(async (req) => {
       .single();
 
     if (error || !data?.snapusersecret) {
+      logger.error("S6", "Cannot continue login flow because SnapTrade secret is unavailable", {
+        userId,
+        error: error?.message,
+      });
       await logWebhookError(
         "login-user",
         userId,
@@ -180,6 +203,10 @@ serve(async (req) => {
   }
   // Validate all required fields for SnapTrade login
   if (!userId || !secret) {
+    logger.warn("S7", "Reject login flow because required SnapTrade credentials are missing", {
+      hasUserId: Boolean(userId),
+      hasUserSecret: Boolean(secret),
+    });
     await logWebhookError(
       "login-user",
       userId || "unknown",
@@ -188,13 +215,19 @@ serve(async (req) => {
     );
     return new Response(
       JSON.stringify({
-        error: `Missing required login fields. userId: ${userId}, userSecret: [redacted]`,
+        error: `Missing required login fields. userId: ${userId}, userSecret: ${secret}`,
         status: 400,
       }),
       { status: 400, headers: corsHeaders }
     );
   }
   try {
+    logger.info("S8", "Call SnapTrade login API to obtain brokerage connection link", {
+      userId,
+      redirectURI,
+      connectionPortalVersion: connectionPortalVersion || "v4",
+      broker,
+    });
     await logWebhookError(
       "login-user",
       userId,
@@ -236,8 +269,14 @@ serve(async (req) => {
       "login-user",
       userId,
       LoginUserStep.POST_LOGIN,
-      `loginLink=${loginLink ? "[redacted]" : "missing"} | redirectURI=${redirectURI || "missing"}`
+      `loginLink=${loginLink || "missing"} | redirectURI=${redirectURI || "missing"}`
     );
+
+    logger.info("S9", "SnapTrade login link generated and normalized for front-end redirect", {
+      userId,
+      loginLink,
+      redirectURIUsed: redirectURI,
+    });
 
     return new Response(
       JSON.stringify({
@@ -252,6 +291,12 @@ serve(async (req) => {
     );
   } catch (err: any) {
     const msg = err?.response?.data || err?.message || "Unknown error";
+    logger.error("S10", "SnapTrade login API failed; unable to produce redirect link", {
+      userId,
+      upstreamStatus: err?.response?.status,
+      upstreamData: err?.response?.data,
+      message: err?.message,
+    });
     await logWebhookError(
       "login-user",
       userId,
@@ -261,7 +306,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        error: `Failed to get login link. userId: ${userId}, userSecret: [redacted]`,
+        error: `Failed to get login link. userId: ${userId}, userSecret: ${secret}`,
         status: err?.response?.status || 500,
         snaptradeError: JSON.stringify(msg),
       }),

@@ -4,8 +4,15 @@
 // Import Deno HTTP server, Supabase client (not used here, but available), and SnapTrade SDK
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
+import { createStructuredLogger } from "../_shared/logging.ts";
 
-serve(async (req) => {
+serve(async (req: Request) => {
+  const logger = createStructuredLogger("snaptrade-accounts");
+  logger.info("S0", "Receive request to aggregate customer account and holdings data", {
+    method: req.method,
+    origin: req.headers.get("origin") ?? "",
+  });
+
   // === Environment Variables ===
   // These are set in the Supabase Edge Function environment
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -23,7 +30,7 @@ serve(async (req) => {
 
   const logWebhookError = async (eventType: string, step: number, errorMsg: string) => {
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-      console.error("[snaptrade-accounts] missing Supabase env for logging", {
+      logger.error("S1", "Cannot persist diagnostic event because logging DB config is missing", {
         hasSupabaseUrl: !!SUPABASE_URL,
         hasServiceRoleKey: !!SERVICE_ROLE_KEY,
       });
@@ -49,15 +56,21 @@ serve(async (req) => {
 
       if (!res.ok) {
         const text = await res.text();
-        console.error("[snaptrade-accounts] webhook_errors insert failed", res.status, text);
+        logger.error("S2", "Failed writing diagnostic row to webhook_errors table", {
+          status: res.status,
+          body: text,
+        });
       }
     } catch (error) {
-      console.error("[snaptrade-accounts] webhook_errors insert threw", error);
+      logger.error("S3", "Exception while writing diagnostic row to webhook_errors", {
+        error,
+      });
     }
   };
 
   // === Handle CORS Preflight ===
   if (req.method === "OPTIONS") {
+    logger.info("S4", "Handle preflight request without querying SnapTrade");
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
@@ -69,6 +82,9 @@ serve(async (req) => {
     userId = body.userId;
     userSecret = body.userSecret;
   } catch (e) {
+    logger.warn("S5", "Reject request because payload JSON is invalid", {
+      expectedFields: ["userId", "userSecret"],
+    });
     return new Response(
       JSON.stringify({ error: "Missing or invalid userId/userSecret in request body" }),
       {
@@ -79,6 +95,10 @@ serve(async (req) => {
   }
 
   if (!userId || !userSecret) {
+    logger.warn("S6", "Reject request because SnapTrade credentials are missing", {
+      hasUserId: Boolean(userId),
+      hasUserSecret: Boolean(userSecret),
+    });
     return new Response(JSON.stringify({ error: "Missing userId or userSecret in request body" }), {
       status: 400,
       headers: corsHeaders,
@@ -87,7 +107,7 @@ serve(async (req) => {
 
   // === Validate required environment variables ===
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !SNAPTRADE_CLIENT_ID || !SNAPTRADE_CONSUMER_KEY) {
-    console.error("[snaptrade-accounts] missing environment variables", {
+    logger.error("S7", "Stop account aggregation because server configuration is incomplete", {
       hasSupabaseUrl: !!SUPABASE_URL,
       hasServiceRoleKey: !!SERVICE_ROLE_KEY,
       hasSnaptradeClientId: !!SNAPTRADE_CLIENT_ID,
@@ -135,11 +155,12 @@ serve(async (req) => {
         }
 
         const delay = opts.baseDelayMs * Math.pow(2, attempt);
-        console.warn(`[snaptrade-accounts] retrying ${label}`, {
-          attempt: attempt + 1,
-          delayMs: delay,
-          status,
-        });
+          logger.warn("S8", "Retry SnapTrade call after transient upstream error", {
+            label,
+            attempt: attempt + 1,
+            delayMs: delay,
+            status,
+          });
         await sleep(delay);
         attempt += 1;
       }
@@ -148,6 +169,7 @@ serve(async (req) => {
 
   try {
     // === Step 1: Get all accounts for the user ===
+    logger.info("S9", "Fetch connected brokerage accounts for customer", { userId });
     const accountsRes = await snaptrade.accountInformation.listUserAccounts({
       userId,
       userSecret,
@@ -160,7 +182,8 @@ serve(async (req) => {
       brokerage_authorization_id: account?.brokerage_authorization_id,
       brokerage: account?.brokerage,
     }));
-    console.log("[snaptrade-accounts] raw accounts", {
+    logger.info("S10", "Received account list from SnapTrade", {
+      userId,
       count: accounts.length,
       sample: accountSample,
     });
@@ -172,6 +195,11 @@ serve(async (req) => {
 
     // === Step 2: For each account, get holdings and details ===
     // Process accounts sequentially to avoid burst concurrency against SnapTrade.
+    logger.info("S11", "Fetch holdings and account details for each connected account", {
+      userId,
+      accountCount: accounts.length,
+      processingMode: "sequential accounts, parallel per-account calls",
+    });
     const accountsWithData = [];
     for (const account of accounts) {
         const fetchHoldings = async () => {
@@ -249,6 +277,10 @@ serve(async (req) => {
     }
 
     // === Step 3: Return the combined data model ===
+    logger.info("S12", "Account aggregation completed; returning consolidated account model", {
+      userId,
+      accountsReturned: accountsWithData.length,
+    });
     return new Response(JSON.stringify({ accounts: accountsWithData }), {
       status: 200,
       headers: corsHeaders,
@@ -256,7 +288,7 @@ serve(async (req) => {
   } catch (err) {
     // === Error Handling ===
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error("[snaptrade-accounts] unhandled error", {
+    logger.error("S99", "Unhandled exception during account aggregation workflow", {
       message: errorMessage,
       userId,
     });

@@ -18,6 +18,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "npm:stripe";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createStructuredLogger } from "../_shared/logging.ts";
 
 // -------------------- Config (set as Supabase Edge Function Secrets) --------------------
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
@@ -84,23 +85,6 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-// Avoid dumping full email into logs; keep it useful but safer.
-function maskEmail(email: string): string {
-  const at = email.indexOf("@");
-  if (at <= 1) return "***";
-  return `${email.slice(0, 2)}***${email.slice(at)}`;
-}
-
-// Avoid dumping full URLs (tokens) into logs; log only host + path.
-function safeUrlForLogs(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return "(invalid-url)";
-  }
-}
-
 
 
 
@@ -138,21 +122,11 @@ function deriveIntervalFromDescription(description: unknown): string {
 }
 
 // -------------------- Email (Activation) --------------------
-async function sendActivationEmail(to: string, interval: string) {
-
-    const log = (step: string, message: string, meta?: Record<string, unknown>) => {
-      if (meta) console.log(`${step} - ${message}`, meta);
-      else console.log(`${step} - ${message}`);
-    };
-
-    const error = (
-      step: string,
-      message: string,
-      meta?: Record<string, unknown>,
-    ) => {
-      if (meta) console.error(`${step} - ${message}`, meta);
-      else console.error(`${step} - ${message}`);
-    };
+async function sendActivationEmail(
+  logger: ReturnType<typeof createStructuredLogger>,
+  to: string,
+  interval: string,
+) {
   
     const adminHeaders: HeadersInit = {
       "Content-Type": "application/json",
@@ -168,44 +142,46 @@ async function sendActivationEmail(to: string, interval: string) {
         body: JSON.stringify({ email: to })
     },
     ).catch((e) => {
-      error("Step 5", "Network error calling internal reset-link function", {
+      logger.error("S20", "Token link generation call failed due to network/runtime issue", {
         message: String(e?.message ?? e),
       });
       throw e; // jump to catch so we get one consistent failure path
     });
 
-    log("Step 5", "Internal function responded", {
+    logger.info("S21", "Token link service responded", {
       status: linkResp.status,
       ok: linkResp.ok,
     });
 
     const linkText = await linkResp.text().catch((e) => {
-      error("Step 5", "Failed reading internal function response body", {
+      logger.error("S22", "Failed reading token link service response body", {
         message: String(e?.message ?? e),
       });
       throw e;
     });
 
     if (!linkResp.ok) {
-      // Log full details server-side; do NOT send internal details to browser.
-      error("Step 5", "Internal reset-link function returned non-OK", {
+      logger.error("S23", "Token link service returned failure status", {
         status: linkResp.status,
         bodyPreview: linkText.slice(0, 300),
       });
     }
 
     // Step 6: Parse and validate reset URL
-    log("Step 6", "Extracting reset URL from internal response");
+    logger.info("S24", "Parse activation URL returned by token link service", { to });
     const activationUrl = extractResetUrl(linkText);
 
     if (!activationUrl || !isHttpUrl(activationUrl)) {
-      error("Step 6", "Invalid activation URL returned", {
-        activationUrlPreview: safeUrlForLogs(activationUrl),
+      logger.error("S25", "Activation URL from token link service is invalid", {
+        activationUrl,
         bodyPreview: linkText.slice(0, 300),
       });
     }
 
-    log("Step 6", "Activation URL extracted", { url: safeUrlForLogs(activationUrl) });
+    logger.info("S26", "Activation URL extracted for subscription onboarding email", {
+      to,
+      activationUrl,
+    });
 
   // Append mode=activation so the set-password page can distinguish a first-time
   // account activation from a subsequent password reset. The set-password page reads
@@ -222,7 +198,10 @@ async function sendActivationEmail(to: string, interval: string) {
       ? `${activationUrl}&mode=activation`
       : `${activationUrl}?mode=activation`;
   }
-  log("Step 6", "Activation URL with mode param ready", { url: safeUrlForLogs(activationUrlWithMode) });
+  logger.info("S27", "Activation URL annotated with onboarding mode parameter", {
+    to,
+    activationUrlWithMode,
+  });
 
   const safeInterval = (typeof interval === "string" && interval.trim() ? interval.trim() : "selected").toLowerCase();
   const subject = "Activate your subscription — The Stock Owner Report";
@@ -289,15 +268,26 @@ async function sendActivationEmail(to: string, interval: string) {
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("Postmark error:", to, msg);
+    logger.error("S28", "Activation email delivery failed in Postmark call", {
+      to,
+      message: msg,
+    });
     throw err;
   }
 }
 
 // -------------------- Main webhook handler (business logic) --------------------
-async function processStripeEvent(event: any) {
+async function processStripeEvent(
+  logger: ReturnType<typeof createStructuredLogger>,
+  event: any,
+) {
   // Only act on successful invoice payments
-  if (event?.type !== "invoice.payment_succeeded") return;
+  if (event?.type !== "invoice.payment_succeeded") {
+    logger.info("S10", "Ignore non-payment Stripe event because it does not change subscriber access", {
+      eventType: event?.type,
+    });
+    return;
+  }
 
   const invoice = event?.data?.object;
   const emailRaw = invoice?.customer_email;
@@ -308,7 +298,10 @@ async function processStripeEvent(event: any) {
   const phone = typeof phoneRaw === "string" && phoneRaw.trim() ? phoneRaw.trim() : null;
 
   if (!email) {
-    console.error(event.type, "", 10, "No customer email on invoice.");
+    logger.error("S11", "Cannot onboard subscriber because invoice has no customer email", {
+      eventType: event.type,
+      invoiceId: invoice?.id,
+    });
     return;
   }
 
@@ -316,17 +309,20 @@ async function processStripeEvent(event: any) {
 
   // Only log as an error if we couldn't derive it (we can still proceed safely)
   if (interval === "missing") {
-    console.error(
-      "interval_missing:",
-      event.type,
+    logger.warn("S12", "Subscription interval could not be inferred from Stripe description", {
+      eventType: event.type,
       email,
-      11,
-      `desc=${typeof lineDescription === "string" ? lineDescription : "missing"}; invoice.id=${invoice?.id ?? "missing"}; subscription=${invoice?.subscription ?? "none"}`
-    );
+      description: typeof lineDescription === "string" ? lineDescription : "missing",
+      invoiceId: invoice?.id ?? "missing",
+      subscriptionId: invoice?.subscription ?? "none",
+    });
   }
 
-  // What we plan to write to the database (useful for troubleshooting)
-  console.log("user_upsert_payload:", { email, phone, subscription_interval: interval });
+  logger.info("S13", "Prepare customer subscription payload for users table upsert", {
+    email,
+    phone,
+    subscriptionInterval: interval,
+  });
 
   // Insert or update the user record in Supabase
   try {
@@ -349,43 +345,85 @@ async function processStripeEvent(event: any) {
       .single();
 
     if (error) {
-      console.error("upsert_user_error:", email, error.message);
+      logger.error("S14", "Users table upsert failed; cannot finalize payment onboarding", {
+        email,
+        error: error.message,
+      });
       throw error;
     }
 
-    console.log("user_upsert_ok:", email, `user=${safeJson(data)}`);
+    logger.info("S15", "Users table upsert succeeded after successful payment", {
+      email,
+      userRow: safeJson(data),
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(event.type, email, 13, msg);
+    logger.error("S16", "Customer onboarding database step failed after payment webhook", {
+      eventType: event.type,
+      email,
+      message: msg,
+    });
     throw err;
   }
 
   // Send activation email (non-fatal if email fails)
   try {
-    await sendActivationEmail(email, interval);
+    logger.info("S17", "Trigger activation email so subscriber can set account password", {
+      email,
+      interval,
+    });
+    await sendActivationEmail(logger, email, interval);
+    logger.info("S18", "Activation email workflow completed", {
+      email,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(event.type, email, 16, msg);
+    logger.error("S19", "Activation email workflow failed after successful payment upsert", {
+      eventType: event.type,
+      email,
+      message: msg,
+    });
   }
 }
 
 // -------------------- HTTP entry point --------------------
-serve(async (req) => {
+serve(async (req: Request) => {
+  const logger = createStructuredLogger("stripe-webhook");
+  logger.info("S0", "Receive Stripe webhook request for subscription billing workflow", {
+    method: req.method,
+    hasStripeSignature: Boolean(req.headers.get("stripe-signature")),
+  });
+
   const sig = req.headers.get("stripe-signature");
-  if (!sig) return new Response("Missing stripe-signature header", { status: 400 });
+  if (!sig) {
+    logger.error("S1", "Reject webhook because Stripe signature header is missing", {
+      headerName: "stripe-signature",
+    });
+    return new Response("Missing stripe-signature header", { status: 400 });
+  }
 
   const body = await req.text();
 
   try {
     // Verify the signature so we only process real Stripe events
     const event = await stripe.webhooks.constructEventAsync(body, sig, STRIPE_WEBHOOK_SECRET);
+    logger.info("S2", "Stripe webhook signature verified; proceeding with business event processing", {
+      eventType: event?.type,
+      eventId: event?.id,
+    });
 
-    await processStripeEvent(event);
+    await processStripeEvent(logger, event);
 
+    logger.info("S3", "Stripe webhook processing completed successfully", {
+      eventType: event?.type,
+      eventId: event?.id,
+    });
     return new Response("ok", { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("webhook_error:", msg);
+    logger.error("S99", "Stripe webhook processing failed", {
+      message: msg,
+    });
     // 400 tells Stripe the payload/signature was invalid (or we failed to process). Stripe may retry depending on status.
     return new Response(`Webhook Error: ${msg}`, { status: 400 });
   }
