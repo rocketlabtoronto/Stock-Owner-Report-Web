@@ -58,7 +58,7 @@ serve(async (req: Request) => {
       "Content-Type": "application/json",
     };
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/webhook_errors`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/webhook_logs`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -72,7 +72,7 @@ serve(async (req: Request) => {
 
     if (!res.ok) {
       const text = await res.text();
-      logger.error("S11", "Failed writing login diagnostic row to webhook_errors table", {
+      logger.error("S11", "Failed writing login diagnostic row to webhook_logs table", {
         status: res.status,
         body: text,
       });

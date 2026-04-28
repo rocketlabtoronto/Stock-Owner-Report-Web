@@ -153,7 +153,7 @@ BEGIN
   END IF;
 END $$;
 
-CREATE TABLE IF NOT EXISTS "dashboard"."webhook_errors" (
+CREATE TABLE IF NOT EXISTS "dashboard"."webhook_logs" (
   "id" integer NOT NULL,
   "event_type" "text" NOT NULL,
   "email" "text",
@@ -162,15 +162,15 @@ CREATE TABLE IF NOT EXISTS "dashboard"."webhook_errors" (
   "step" integer NOT NULL
 );
 
-CREATE SEQUENCE IF NOT EXISTS "dashboard"."webhook_errors_id_seq"
+CREATE SEQUENCE IF NOT EXISTS "dashboard"."webhook_logs_id_seq"
   AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
 
-ALTER SEQUENCE "dashboard"."webhook_errors_id_seq" OWNED BY "dashboard"."webhook_errors"."id";
-ALTER TABLE ONLY "dashboard"."webhook_errors"
-  ALTER COLUMN "id" SET DEFAULT nextval('"dashboard"."webhook_errors_id_seq"'::regclass);
+ALTER SEQUENCE "dashboard"."webhook_logs_id_seq" OWNED BY "dashboard"."webhook_logs"."id";
+ALTER TABLE ONLY "dashboard"."webhook_logs"
+  ALTER COLUMN "id" SET DEFAULT nextval('"dashboard"."webhook_logs_id_seq"'::regclass);
 
-ALTER TABLE ONLY "dashboard"."webhook_errors"
-  ADD CONSTRAINT "webhook_errors_pkey" PRIMARY KEY ("id");
+ALTER TABLE ONLY "dashboard"."webhook_logs"
+  ADD CONSTRAINT "webhook_logs_pkey" PRIMARY KEY ("id");
 
 -- NOTE: Intentionally NOT creating dashboard.password_reset_tokens
 -- because your Edge Functions use the PUBLIC version.

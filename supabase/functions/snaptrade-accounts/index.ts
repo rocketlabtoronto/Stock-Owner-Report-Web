@@ -38,7 +38,7 @@ serve(async (req: Request) => {
     }
 
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/webhook_errors`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/webhook_logs`, {
         method: "POST",
         headers: {
           apikey: SERVICE_ROLE_KEY,
@@ -56,13 +56,13 @@ serve(async (req: Request) => {
 
       if (!res.ok) {
         const text = await res.text();
-        logger.error("S2", "Failed writing diagnostic row to webhook_errors table", {
+        logger.error("S2", "Failed writing diagnostic row to webhook_logs table", {
           status: res.status,
           body: text,
         });
       }
     } catch (error) {
-      logger.error("S3", "Exception while writing diagnostic row to webhook_errors", {
+      logger.error("S3", "Exception while writing diagnostic row to webhook_logs", {
         error,
       });
     }
