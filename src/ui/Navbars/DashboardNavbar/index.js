@@ -21,8 +21,6 @@ import IconButton from "@mui/material/IconButton";
 import {
   useCustomController,
   setTransparentNavbar,
-  setMiniSidenav,
-  setOpenConfigurator,
 } from "context";
 // User info imports
 import { useAuthStore } from "stores/useAuthStore";
@@ -36,8 +34,7 @@ import Typography from "@mui/material/Typography";
 function DashboardNavbar({ absolute, light, isMini }) {
   const [navbarType, setNavbarType] = useState();
   const [controller, dispatch] = useCustomController();
-  const { miniSidenav, transparentNavbar, fixedNavbar, openConfigurator } = controller;
-  const [openMenu, setOpenMenu] = useState(false);
+  const { transparentNavbar, fixedNavbar } = controller;
   const location = useLocation();
   let route = [];
   if (location && typeof location.pathname === "string" && location.pathname != null) {
@@ -85,14 +82,6 @@ function DashboardNavbar({ absolute, light, isMini }) {
     // Remove event listener on cleanup
     return () => window.removeEventListener("scroll", handleTransparentNavbar);
   }, [dispatch, fixedNavbar]);
-
-  const handleMiniSidenav = () => setMiniSidenav(dispatch, !miniSidenav);
-  const handleConfiguratorOpen = () => setOpenConfigurator(dispatch, !openConfigurator);
-  const handleOpenMenu = (event) => setOpenMenu(event.currentTarget);
-  const handleCloseMenu = () => setOpenMenu(false);
-
-  // Render the notifications menu
-  const renderMenu = () => <></>;
 
   return (
     <AppBar

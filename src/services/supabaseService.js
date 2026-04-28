@@ -110,13 +110,6 @@ const supabaseService = {
     return res.json();
   },
 
-  async insertFinancialRecord(data) {
-    return fetchJson(
-      `${SUPABASE_URL}/rest/v1/financials`,
-      { method: "POST", headers, body: JSON.stringify(data) },
-      "Insert failed"
-    );
-  },
 };
 
 export default supabaseService;

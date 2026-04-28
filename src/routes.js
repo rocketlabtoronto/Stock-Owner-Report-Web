@@ -11,7 +11,6 @@ import Login from "layouts/login/login";
 import Privacy from "pages/Privacy";
 import Terms from "pages/Terms";
 import OurPrinciples from "pages/OurPrinciples";
-import EnvironmentDebug from "components/EnvironmentDebug";
 
 import AccountBalanceWalletOutlined from "@mui/icons-material/AccountBalanceWalletOutlined";
 import AccountBalanceOutlined from "@mui/icons-material/AccountBalanceOutlined";
@@ -125,15 +124,6 @@ const routes = [
     route: "/our-principles",
     icon: <CustomBox component="i" color="black" fontSize="14px" className="ni ni-single-copy-04" />,
     component: <OurPrinciples />,
-    hidden: true,
-  },
-  {
-    type: "route",
-    name: "Environment Debug",
-    key: "environment-debug",
-    route: "/environment-debug",
-    icon: <CustomBox component="i" color="black" fontSize="14px" className="ni ni-settings" />,
-    component: <EnvironmentDebug />,
     hidden: true,
   },
 ];
