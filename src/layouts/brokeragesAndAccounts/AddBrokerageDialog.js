@@ -13,10 +13,10 @@ import PropTypes from "prop-types";
 import { parseBrokerageCsv } from "services/parseBrokerageCsvService";
 import { useAppStore } from "../../stores/store";
 import { SNAPTRADE_BROKER_ALLOWLIST } from "services/snaptradeBrokerAllowlistService";
+import { inferBankFromName } from "services/snaptradeMappingService";
 
 export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [parsedData, setParsedData] = useState([]);
   const [country, setCountry] = useState("Canada");
   const [consentOpen, setConsentOpen] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
@@ -77,29 +77,6 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
     });
   };
 
-  // Infer short bank code from the brokerage display name for logo mapping
-  const inferBankFromName = (name) => {
-    const n = String(name || "").toLowerCase();
-    if (n.includes("td")) return "TD";
-    if (n.includes("rbc")) return "rbc";
-    if (n.includes("questrade")) return "questrade";
-    if (n.includes("wealthsimple")) return "wealthsimple";
-    if (n.includes("cibc")) return "cibc";
-    if (n.includes("national bank")) return "nbdb";
-    if (n.includes("scotia")) return "scotia";
-    if (n.includes("bmo")) return "bmo";
-    if (n.includes("schwab")) return "charles";
-    if (n.includes("chase")) return "chase";
-    if (n.includes("etrade") || n.includes("e*trade")) return "etrade";
-    if (n.includes("fidelity")) return "fidelity";
-    if (n.includes("interactive brokers")) return "ibkr";
-    if (n.includes("merrill")) return "merrill";
-    if (n.includes("robinhood")) return "robinhood";
-    if (n.includes("vanguard")) return "vanguard";
-    if (n.includes("wells fargo")) return "fargo";
-    return "logo_image"; // default fallback
-  };
-
   const handleConsent = () => {
     setConsentOpen(false);
     onClose();
@@ -107,12 +84,10 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
 
   // Handle tile click
   const handleBrokerageTileClick = (broker) => {
-    console.log("Clicked broker:", broker);
     const allowlistEntry = SNAPTRADE_BROKER_ALLOWLIST.find(
       (entry) => entry.label.toLowerCase() === String(broker.name || "").toLowerCase()
     );
     const resolvedSlug = allowlistEntry?.enabled === false ? null : allowlistEntry?.broker;
-    console.log("resolvedSlug: ", resolvedSlug);
     const requiresManual =
       broker.integration === isIntegrationAvailable.notAvailable ||
       (broker.integration === isIntegrationAvailable.snapTrade && isSnapTradeDisabled) ||
@@ -271,11 +246,6 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
           {selectedFile && (
             <Typography sx={{ fontSize: 12.5, color: "#4B5563", mt: 1 }}>
               Selected file: {selectedFile.name}
-            </Typography>
-          )}
-          {parsedData.length > 0 && (
-            <Typography sx={{ fontSize: 12.5, color: "#4B5563", mt: 1 }}>
-              Parsed {parsedData.length} rows.
             </Typography>
           )}
         </DialogContent>

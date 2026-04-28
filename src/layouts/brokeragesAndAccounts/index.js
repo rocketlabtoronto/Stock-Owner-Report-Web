@@ -42,9 +42,6 @@ async function calculateBalanceFromStockPrices(holdings) {
     return 0;
   }
 
-  console.log(`DEBUG: Total holdings received: ${holdings.length}`);
-  console.log(`DEBUG: Holdings data:`, holdings);
-
   let totalBalance = 0;
   let processedCount = 0;
 
@@ -52,26 +49,17 @@ async function calculateBalanceFromStockPrices(holdings) {
     const symbol = holding.Symbol || holding.symbol;
     const quantity = parseFloat(holding.Quantity || holding.shares || 0);
 
-    console.log(`DEBUG: Processing holding - Symbol: ${symbol}, Quantity: ${quantity}`);
-
     if (!symbol || isNaN(quantity) || quantity <= 0) {
-      console.log(`DEBUG: Skipping holding - Symbol: ${symbol}, Quantity: ${quantity} (invalid)`);
       continue;
     }
 
     processedCount++;
-    console.log(`DEBUG: Valid holding #${processedCount} - ${symbol}: ${quantity} shares`);
 
     try {
       // Fetch current stock price from the stock_prices table
       const stockPrices = await supabaseService.getStockPrices({ symbol: symbol });
 
-      console.log(`DEBUG: Stock prices response for ${symbol}:`, stockPrices);
-
       if (!Array.isArray(stockPrices) || stockPrices.length === 0) {
-        console.log(
-          `❌ No stock price found for ${symbol} - this holding will be excluded from balance`
-        );
         continue;
       }
 
@@ -79,30 +67,14 @@ async function calculateBalanceFromStockPrices(holdings) {
       const latestPriceData = stockPrices[0];
       const currentPrice = parseFloat(latestPriceData.price || 0);
 
-      console.log(`DEBUG: ${symbol} price data:`, latestPriceData);
-      console.log(`DEBUG: ${symbol} parsed price: ${currentPrice}`);
-
       if (!isNaN(currentPrice) && currentPrice > 0) {
         const holdingValue = quantity * currentPrice;
         totalBalance += holdingValue;
-
-        console.log(
-          `✅ ${symbol}: ${quantity} shares × $${currentPrice.toFixed(2)} = $${holdingValue.toFixed(
-            2
-          )}`
-        );
-      } else {
-        console.log(
-          `❌ Invalid price data for ${symbol}: ${currentPrice} - this holding will be excluded from balance`
-        );
       }
     } catch (error) {
       console.error(`Error fetching stock price for ${symbol}:`, error);
     }
   }
-
-  console.log(`DEBUG: Processed ${processedCount} valid holdings out of ${holdings.length} total`);
-  console.log(`Total calculated balance: $${totalBalance.toFixed(2)}`);
   return totalBalance;
 }
 
@@ -139,7 +111,6 @@ export default function BrokeragesAndAccounts() {
           try {
             const balance = await calculateBalanceFromStockPrices(holdings);
             newBalances[accountRaw] = balance;
-            console.log(`Calculated balance for ${accountRaw}: $${balance.toFixed(2)}`);
           } catch (error) {
             console.error(`Error calculating balance for ${accountRaw}:`, error);
             newBalances[accountRaw] = null;
@@ -225,9 +196,6 @@ export default function BrokeragesAndAccounts() {
           ? item.holdings
           : [];
 
-        console.log(`DEBUG: Account ${accountRaw} - Raw holdings count: ${holdings.length}`);
-        console.log(`DEBUG: Holdings structure:`, holdings);
-
         // Use calculated balance from financial data, fallback to price-based calculation
         const calculatedBalance = calculatedBalances[accountRaw];
   let equitiesValue = calculatedBalance;
@@ -238,10 +206,6 @@ export default function BrokeragesAndAccounts() {
           const quantity = parseFloat(h.Quantity || h.shares || 0);
           return symbol && !isNaN(quantity) && quantity > 0;
         }).length;
-
-        console.log(
-          `DEBUG: Account ${accountRaw} - Valid holdings (with symbol & quantity > 0): ${validHoldingsCount} out of ${holdings.length} total`
-        );
 
         // If no calculated balance and we have price data, use price-based calculation
         if (calculatedBalance == null) {

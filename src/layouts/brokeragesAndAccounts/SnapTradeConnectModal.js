@@ -75,8 +75,6 @@ export default function SnapTradeConnectModal({
       console.error(entry);
     } else if (level === "warn") {
       console.warn(entry);
-    } else {
-      console.log(entry);
     }
   };
 

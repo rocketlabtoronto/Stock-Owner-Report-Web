@@ -1,4 +1,4 @@
-const inferBankFromName = (name) => {
+export const inferBankFromName = (name) => {
   const n = String(name || "").toLowerCase();
   if (n.includes("td")) return "TD";
   if (n.includes("rbc")) return "rbc";

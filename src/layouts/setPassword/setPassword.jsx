@@ -61,17 +61,13 @@ export default function SetPassword() {
   const [success, setSuccess] = useState(false);
 
   const handleSetPassword = async () => {
-    console.log("[SetPassword] Step 1 - Clicked Set Password");
-
     // Step 2: Basic checks
     if (!token) {
-      console.error("[SetPassword] Step 2 - Missing token");
       setError("Missing or invalid password reset link.");
       return;
     }
 
     // Step 3: Password strength validation
-    console.log("[SetPassword] Step 3 - Validating password rules");
     const passwordErrors = [];
     if (password.length < 8) passwordErrors.push("Password must be at least 8 characters.");
     if (!/[A-Z]/.test(password)) passwordErrors.push("Password must contain at least one uppercase letter.");
@@ -81,13 +77,11 @@ export default function SetPassword() {
       passwordErrors.push("Password must contain at least one special character.");
 
     if (passwordErrors.length > 0) {
-      console.error("[SetPassword] Step 3 - Password validation failed", { passwordErrors });
       setError(passwordErrors.join("\n"));
       return;
     }
 
     if (password !== confirm) {
-      console.error("[SetPassword] Step 3 - Passwords do not match");
       setError("Passwords do not match.");
       return;
     }
@@ -97,41 +91,32 @@ export default function SetPassword() {
 
     try {
       // Step 4: Hash/encrypt password (client-side)
-      console.log("[SetPassword] Step 4 - Encrypting password");
       const passwordHash = await encrypt(password);
 
       // Step 5: Send token + hash to Edge Function (server-side validation + update)
       // IMPORTANT: This avoids browser SELECT/UPDATE on protected tables.
-      console.log("[SetPassword] Step 5 - Calling Edge Function set-password-with-token");
       const { data, error } = await supabase.functions.invoke("set-password-with-token", {
         body: { token, passwordHash },
       });
 
-      console.log("[SetPassword] Step 6 - Edge Function responded", { data, error });
-
       if (error) {
-        console.error("[SetPassword] Step 6 - Edge Function error", error);
         const resolvedMessage = await extractFunctionErrorMessage(error);
         setError(resolvedMessage);
         return;
       }
 
       if (!data?.success) {
-        console.error("[SetPassword] Step 6 - Edge Function returned failure", data);
         setError(data?.error || "Token is invalid or expired.");
         return;
       }
 
       // Step 7: Success
-      console.log("[SetPassword] Step 7 - Password set successfully");
       setSuccess(true);
       setTimeout(() => navigate("/login"), 2000);
     } catch (e) {
-      console.error("[SetPassword] Catch - Unhandled error", e);
       setError(e?.message ?? "Unexpected error setting password.");
     } finally {
       setLoading(false);
-      console.log("[SetPassword] Final - Done");
     }
   };
 

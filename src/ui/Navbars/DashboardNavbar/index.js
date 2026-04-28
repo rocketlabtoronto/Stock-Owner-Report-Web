@@ -1,8 +1,5 @@
 import { useState, useEffect } from "react";
 
-// react-router components
-import { useLocation } from "react-router-dom";
-
 // prop-types is a library for typechecking of props.
 import PropTypes from "prop-types";
 
@@ -31,19 +28,10 @@ import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
-function DashboardNavbar({ absolute, light, isMini }) {
+function DashboardNavbar({ absolute }) {
   const [navbarType, setNavbarType] = useState();
   const [controller, dispatch] = useCustomController();
-  const { transparentNavbar, fixedNavbar } = controller;
-  const location = useLocation();
-  let route = [];
-  if (location && typeof location.pathname === "string" && location.pathname != null) {
-    try {
-      route = location.pathname.split("/").slice(1);
-    } catch (e) {
-      route = [];
-    }
-  }
+  const { fixedNavbar } = controller;
 
   // Get logged-in user from Zustand
   const user = useAuthStore((state) => state.user);
@@ -224,15 +212,11 @@ function DashboardNavbar({ absolute, light, isMini }) {
 // Setting default values for the props of DashboardNavbar
 DashboardNavbar.defaultProps = {
   absolute: false,
-  light: true,
-  isMini: false,
 };
 
 // Typechecking props for the DashboardNavbar
 DashboardNavbar.propTypes = {
   absolute: PropTypes.bool,
-  light: PropTypes.bool,
-  isMini: PropTypes.bool,
 };
 
 export default DashboardNavbar;

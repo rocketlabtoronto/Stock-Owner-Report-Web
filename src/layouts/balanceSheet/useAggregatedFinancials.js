@@ -90,16 +90,7 @@ function useAggregatedFinancials(selectedAccountId = null) {
             []
           : defaultHoldings;
 
-        console.log("=== Balance Sheet Debug ===");
-        console.log("accounts:", accounts);
-        console.log("selectedAccountId:", selectedAccountId);
-        console.log("resolvedAccountId:", resolvedAccountId);
-        console.log("targetHoldings:", targetHoldings);
-        console.log("defaultHoldings:", defaultHoldings);
-        console.log("allAccountsWithLogos:", allAccountsWithLogos);
-
         if (!targetHoldings || targetHoldings.length === 0) {
-          console.log("No holdings found, setting empty data");
           setAggregatedData({
             columns,
             rows: [],
@@ -111,10 +102,8 @@ function useAggregatedFinancials(selectedAccountId = null) {
 
         const rows = await Promise.all(
           (targetHoldings || []).map(async ({ Symbol, Quantity }) => {
-            console.log(`Processing holding: ${Symbol}, Quantity: ${Quantity}`);
             const quantity = parseFloat(Quantity);
             if (isNaN(quantity) || quantity <= 0) {
-              console.log(`Skipping ${Symbol}: invalid quantity`);
               // Return a row with N/A values instead of null
               return {
                 Company: `${Symbol} (${Symbol})`,
@@ -126,13 +115,10 @@ function useAggregatedFinancials(selectedAccountId = null) {
               };
             }
             try {
-              console.log(`Fetching financials for ${Symbol}`);
               const financials = await supabaseService.getFinancials({ ticker: Symbol });
-              console.log(`Financials for ${Symbol}:`, financials);
 
               // If no financials found, still return a row with N/A values
               if (!Array.isArray(financials) || financials.length === 0) {
-                console.log(`No financials found for ${Symbol}, returning row with N/A values`);
                 return {
                   Company: `${Symbol} (${Symbol})`,
                   "Ownership Share": "N/A",
@@ -210,14 +196,8 @@ function useAggregatedFinancials(selectedAccountId = null) {
         );
 
         const filteredRows = rows.filter(Boolean);
-        console.log("Final rows after processing:", filteredRows);
 
         setAggregatedData({
-          columns,
-          rows: filteredRows,
-          brokerageAccounts: allAccountsWithLogos,
-        });
-        console.log("Set aggregated data:", {
           columns,
           rows: filteredRows,
           brokerageAccounts: allAccountsWithLogos,
