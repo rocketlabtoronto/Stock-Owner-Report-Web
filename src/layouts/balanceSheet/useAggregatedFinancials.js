@@ -156,10 +156,20 @@ function useAggregatedFinancials(selectedAccountId = null) {
                 return isNaN(val) ? null : (val / sharesOutstanding) * quantity;
               };
 
-              const formatMoney = (num) =>
-                num !== null
-                  ? "$" + Number(num).toLocaleString("en-US", { maximumFractionDigits: 0 })
-                  : "N/A";
+              const usdFormatter = new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+                maximumFractionDigits: 0,
+              });
+
+              const formatMoney = (num) => {
+                if (num === null) return "N/A";
+                const numeric = Number(num);
+                if (isNaN(numeric)) return "N/A";
+                const rounded = Math.round(numeric);
+                const normalized = Object.is(rounded, -0) ? 0 : rounded;
+                return usdFormatter.format(normalized);
+              };
 
               const formatOwnership = (q, s) => {
                 if (!hasValidShares) return "N/A";
