@@ -13,6 +13,7 @@ import { useAuthStore } from "stores/useAuthStore";
 import { supabase } from "./supabaseClient";
 import brand from "assets/images/logo-ct.png";
 import brandDark from "assets/images/logo-ct-dark.png";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   const [controller] = useCustomController();
@@ -101,6 +102,7 @@ export default function App() {
           <Footer />
         </Box>
       </Box>
+      <Analytics />
     </ThemeProvider>
   );
 }
