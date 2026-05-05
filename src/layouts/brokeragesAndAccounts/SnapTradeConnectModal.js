@@ -174,8 +174,27 @@ export default function SnapTradeConnectModal({
     return registerTransientSnapTradeUser(createTransientUserId());
   };
 
+  /**
+   * Requests the SnapTrade portal login link using the provided auth context.
+   *
+   * IMPORTANT — userId generation policy:
+   *   A new SnapTrade userId must ONLY be created when no stored credentials
+   *   exist.  Generating a fresh userId on a login-link failure would silently
+   *   register an extra SnapTrade user even though the original user is still
+   *   valid.  Orphaned users accumulate costs and make account data unreliable.
+   *
+   * Failure behaviour when stored credentials were reused:
+   *   - The stored credentials are cleared so the NEXT attempt (user-initiated
+   *     retry) can start a clean registration from scratch.
+   *   - The error is re-thrown so the UI can surface it to the user immediately.
+   *   - A new userId is NOT registered during this failure path.
+   *
+   * Failure behaviour when a freshly registered context was used:
+   *   - The error is re-thrown directly; there is nothing to clear.
+   */
   const getLoginLinkWithResolvedContext = async (context, frontendRedirectUri) => {
     try {
+      // Attempt to obtain the SnapTrade portal URL using the current auth context.
       const loginResult = await supabaseService.getSnapTradeLoginLink(
         context.userId,
         context.userSecret,
@@ -188,28 +207,25 @@ export default function SnapTradeConnectModal({
 
       return { loginResult, context };
     } catch (error) {
-      if (!context.reusedStoredContext) {
-        throw error;
+      // If the login-link call failed while using stored credentials, clear
+      // those credentials so a subsequent retry can register a new user.
+      // We do NOT register a new userId here — that would create an extra
+      // SnapTrade user every time a transient network error occurs.
+      if (context.reusedStoredContext) {
+        addDebugLog("warn", "Stored SnapTrade auth context failed getting login link; clearing stored context so next attempt can re-register", {
+          message: error?.message,
+          status: error?.status || error?.response?.status,
+        });
+
+        // Remove the now-suspect credentials from the browser store.
+        // The next time the user opens this flow, resolveSnapTradeContext()
+        // will find nothing stored and will register a brand-new user.
+        clearSnapTradeContext();
       }
 
-      addDebugLog("warn", "Stored SnapTrade auth context failed; re-registering and retrying once", {
-        message: error?.message,
-        status: error?.status || error?.response?.status,
-      });
-
-      clearSnapTradeContext();
-      const freshContext = await registerTransientSnapTradeUser(createTransientUserId());
-      const loginResult = await supabaseService.getSnapTradeLoginLink(
-        freshContext.userId,
-        freshContext.userSecret,
-        frontendRedirectUri,
-        {
-          broker: brokerSlug,
-          connectionPortalVersion: "v4",
-        }
-      );
-
-      return { loginResult, context: freshContext };
+      // Always surface the error to the caller.  The UI will show an error
+      // message and give the user the option to retry the full flow.
+      throw error;
     }
   };
 

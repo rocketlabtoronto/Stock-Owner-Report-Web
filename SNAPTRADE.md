@@ -127,10 +127,31 @@ Critical rule:
 - This indicates remote/local function drift; deployments must account for that.
 - Sign-out behavior differs by UI entrypoint, affecting whether cached snaptrade data remains.
 
+## userId Generation Policy
+
+A new SnapTrade `userId` must only be created when no stored credentials exist.
+
+`resolveSnapTradeContext()` is the single authorised entry point for new userId
+creation.  It returns a fresh `userId/userSecret` pair only when the browser
+store contains no valid credentials.
+
+`getLoginLinkWithResolvedContext()` never creates a new userId.  If the
+login-link call fails while using stored credentials it:
+1. Logs a warning.
+2. Clears the stored credentials so the next user-initiated retry can register
+   a new user cleanly.
+3. Re-throws the error so the UI surfaces it immediately.
+
+This prevents orphaned SnapTrade users from accumulating every time a
+login-link request fails due to a transient network error.
+
 ## Common Failure Modes
 - 401 during register/list users: wrong SnapTrade app key pair or wrong environment pairing.
 - 401 during account fetch: stale/mismatched `userId`/`userSecret`.
 - Missing login link: broker slug absent or not allowlisted.
+- Login-link failure with stored credentials: stored context is cleared; user
+  must retry — the next attempt will register a fresh user. No extra userId is
+  created during the failing request.
 - Direct connect timeout/error: modal falls back to manual CSV upload path.
 - Empty holdings: upstream account has no positions or sync not complete.
 
