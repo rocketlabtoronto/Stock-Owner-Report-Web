@@ -39,8 +39,8 @@ export default function SnapTradeConnectModal({
   const [isConnecting, setIsConnecting] = useState(false);
   const [fallbackTimerExpired, setFallbackTimerExpired] = useState(false);
   const [snapTradeCompleted, setSnapTradeCompleted] = useState(false);
+  const authHydrated = useAuthStore((state) => state.hasHydrated);
   const setSnapTradeContext = useAuthStore((state) => state.setSnapTradeContext);
-  const clearSnapTradeContext = useAuthStore((state) => state.clearSnapTradeContext);
 
   // Manual upload template lives under /public/template.csv
   const templateUrl = "/template.csv";
@@ -141,7 +141,7 @@ export default function SnapTradeConnectModal({
     });
 
     setSnapTradeContext(userId, userSecret);
-    return { userId, userSecret, reusedStoredContext: false };
+    return { userId, userSecret };
   };
 
   const resolveSnapTradeContext = async () => {
@@ -157,68 +157,17 @@ export default function SnapTradeConnectModal({
       return {
         userId: snapTradeUserId.trim(),
         userSecret: snapUserSecret.trim(),
-        reusedStoredContext: true,
       };
     }
 
-    if (hasStoredUserId || hasStoredUserSecret) {
-      addDebugLog("warn", "Incomplete stored SnapTrade auth context found; generating a new one", {
-        hasStoredUserId,
-        hasStoredUserSecret,
-      });
-      clearSnapTradeContext();
-    } else {
-      addDebugLog("info", "No reusable SnapTrade auth context found; generating a new one");
-    }
+    addDebugLog("info", "No complete SnapTrade auth context found; generating a new one", {
+      hasStoredUserId,
+      hasStoredUserSecret,
+    });
 
     return registerTransientSnapTradeUser(createTransientUserId());
   };
 
-  const getLoginLinkWithResolvedContext = async (context, frontendRedirectUri) => {
-    try {
-      const loginResult = await supabaseService.getSnapTradeLoginLink(
-        context.userId,
-        context.userSecret,
-        frontendRedirectUri,
-        {
-          broker: brokerSlug,
-          connectionPortalVersion: "v4",
-        }
-      );
-
-      return { loginResult, context };
-    } catch (error) {
-      if (!context.reusedStoredContext) {
-        throw error;
-      }
-
-      addDebugLog("warn", "Stored SnapTrade auth context failed; re-registering and retrying once", {
-        message: error?.message,
-        status: error?.status || error?.response?.status,
-      });
-
-      clearSnapTradeContext();
-      const freshContext = await registerTransientSnapTradeUser(createTransientUserId());
-      const loginResult = await supabaseService.getSnapTradeLoginLink(
-        freshContext.userId,
-        freshContext.userSecret,
-        frontendRedirectUri,
-        {
-          broker: brokerSlug,
-          connectionPortalVersion: "v4",
-        }
-      );
-
-      return { loginResult, context: freshContext };
-    }
-  };
-
-  /**
-   * Core SnapTrade flow:
-   * 1. Reuse persisted SnapTrade userId + userSecret if both are available.
-   * 2. Otherwise register a new transient user via v2 registration Edge Function.
-   * 3. Get the SnapTrade login link and load the portal.
-   */
   useEffect(() => {
     if (!open) {
       setLoginLink(null);
@@ -242,6 +191,16 @@ export default function SnapTradeConnectModal({
     };
 
     window.addEventListener("keydown", handleKeydown);
+    if (!authHydrated) {
+      setIsConnecting(true);
+      setSnapTradeReady(false);
+      setFallbackTimerExpired(false);
+      setLocalError(null);
+      return () => {
+        window.removeEventListener("keydown", handleKeydown);
+      };
+    }
+
     setIsConnecting(true);
     setFallbackTimerExpired(false);
     const fallbackTimeout = setTimeout(() => {
@@ -281,13 +240,17 @@ export default function SnapTradeConnectModal({
         const frontendRedirectUri = `${window.location.origin}/snapTradeRedirect`;
         addDebugLog("info", "Requesting SnapTrade login link via Edge Function", {
           userId: resolvedContext.userId,
-          reusedStoredContext: resolvedContext.reusedStoredContext,
           redirectURI: frontendRedirectUri,
         });
 
-        const { loginResult, context } = await getLoginLinkWithResolvedContext(
-          resolvedContext,
-          frontendRedirectUri
+        const loginResult = await supabaseService.getSnapTradeLoginLink(
+          resolvedContext.userId,
+          resolvedContext.userSecret,
+          frontendRedirectUri,
+          {
+            broker: brokerSlug,
+            connectionPortalVersion: "v4",
+          }
         );
         const redirectURI =
           loginResult?.redirectURI ||
@@ -309,8 +272,7 @@ export default function SnapTradeConnectModal({
         }
         addDebugLog("info", "SnapTrade login link response", {
           hasRedirectURI: Boolean(redirectURI),
-          userId: context.userId,
-          reusedStoredContext: context.reusedStoredContext,
+          userId: resolvedContext.userId,
           redirectURIUsed: loginResult?.redirectURIUsed,
         });
         addDebugLog("info", "SnapTrade login link resolved", {
@@ -338,7 +300,6 @@ export default function SnapTradeConnectModal({
           status: err?.status || err?.response?.status,
         });
 
-        // Surface the most useful message we can (KISS)
         setLocalError(formatError(err));
         setLoginLink(null);
         setSnapTradeReady(false);
@@ -352,7 +313,7 @@ export default function SnapTradeConnectModal({
       window.removeEventListener("keydown", handleKeydown);
       clearTimeout(fallbackTimeout);
     };
-  }, [open]);
+  }, [open, authHydrated, brokerSlug, brokerageName]);
 
   useEffect(() => {
     if (!open || !loginLink) return;
@@ -463,7 +424,7 @@ export default function SnapTradeConnectModal({
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
             <CircularProgress size={18} sx={{ color: "#0d1b2a" }} />
             <Typography sx={{ fontSize: 13.5, color: "#4B5563" }}>
-              Connecting to {brokerageName}...
+              {authHydrated ? `Connecting to ${brokerageName}...` : "Loading secure connection context..."}
             </Typography>
           </Box>
         )}

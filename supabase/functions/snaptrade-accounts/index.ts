@@ -1,7 +1,5 @@
-// === SnapTrade Accounts Edge Function ===
-// This function receives a POST request with userId and userSecret, fetches all SnapTrade accounts for the user,
-// and for each account, fetches holdings and account details. Returns a combined data model.
-// Import Deno HTTP server, Supabase client (not used here, but available), and SnapTrade SDK
+// Business purpose: fetch a full account + holdings snapshot for one SnapTrade user.
+// Caller provides userId + userSecret from browser auth-storage.
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 import { createStructuredLogger } from "../_shared/logging.ts";
@@ -13,14 +11,12 @@ serve(async (req: Request) => {
     origin: req.headers.get("origin") ?? "",
   });
 
-  // === Environment Variables ===
-  // These are set in the Supabase Edge Function environment
+  // Server configuration is required for both SnapTrade API access and operational diagnostics.
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const SNAPTRADE_CLIENT_ID = Deno.env.get("SNAPTRADE_CLIENT_ID");
   const SNAPTRADE_CONSUMER_KEY = Deno.env.get("SNAPTRADE_CONSUMER_KEY");
 
-  // === CORS Headers ===
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -68,14 +64,12 @@ serve(async (req: Request) => {
     }
   };
 
-  // === Handle CORS Preflight ===
   if (req.method === "OPTIONS") {
     logger.info("S4", "Handle preflight request without querying SnapTrade");
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
-  // === Parse and Validate Request Body ===
-  // Expecting a JSON body with userId and userSecret
+  // Input contract: request body must include userId + userSecret.
   let userId, userSecret;
   try {
     const body = await req.json();
@@ -105,7 +99,6 @@ serve(async (req: Request) => {
     });
   }
 
-  // === Validate required environment variables ===
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !SNAPTRADE_CLIENT_ID || !SNAPTRADE_CONSUMER_KEY) {
     logger.error("S7", "Stop account aggregation because server configuration is incomplete", {
       hasSupabaseUrl: !!SUPABASE_URL,

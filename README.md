@@ -17,12 +17,13 @@
 ## Key Runtime Flows
 
 ### SnapTrade connect
-1. UI opens connect modal and creates transient GUID `userId`.
-2. Calls `functions/v1/snaptrade-register-user-v2`.
-3. Receives `userSecret` and keeps it in local persisted state (not DB).
-4. Calls `functions/v1/login-user` to get a connection portal URL.
-5. Redirect flow (`/snapTradeRedirect`) invokes `functions/v1/snaptrade-accounts` and persists accounts/holdings locally.
-6. Stores `snapTradeLastConnectedAt` timestamp for in-panel status display.
+1. UI waits for auth-storage hydration and checks localStorage-backed `auth-storage` via `useAuthStore`.
+2. If `snapTradeUserId` and `snapUserSecret` both exist, UI uses them directly.
+3. If one or both are missing, UI calls `functions/v1/snaptrade-register-user-v2` once.
+4. Registration persists credentials in `snaptrade_users` for auditability and writes them to `auth-storage` for frontend reuse.
+5. UI calls `functions/v1/login-user` with `userId` + `userSecret` from auth-storage (no backend fallback).
+6. Redirect flow (`/snapTradeRedirect`) invokes `functions/v1/snaptrade-accounts`, persists accounts/holdings locally, then mandatorily calls `functions/v1/disconnect-user`.
+7. If SnapTrade rejects stored credentials, UI shows an explicit error and preserves auth-storage; it does not clear or regenerate credentials automatically.
 
 ### Password reset / set password
 1. `/send-password-reset` calls `functions/v1/send-password-reset-link-email`.
@@ -47,8 +48,6 @@ Create `.env` in project root:
 ```env
 REACT_APP_SUPABASE_URL=<your-supabase-url>
 REACT_APP_SUPABASE_ANON_KEY=<your-supabase-anon-key>
-REACT_APP_SNAPTRADE_CLIENT_ID=<your-snaptrade-client-id>
-REACT_APP_SNAPTRADE_CONSUMER_KEY=<your-snaptrade-consumer-key>
 ```
 
 Supabase Edge Function secrets for Stripe webhook should include Stripe API/signing variables used by `stripe-webhook`.

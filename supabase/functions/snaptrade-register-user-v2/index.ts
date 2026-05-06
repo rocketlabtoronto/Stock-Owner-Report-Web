@@ -1,8 +1,11 @@
+// @ts-nocheck
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 import { createStructuredLogger } from "../_shared/logging.ts";
 
+// Business purpose: register a SnapTrade user and store credentials in DB for auditability.
+// Frontend still reads credentials from auth-storage; this table is operational support.
 const ALLOWED_ORIGINS = new Set([
   "https://app.stockownerreport.com",
   "https://stockownerreport.com",
@@ -21,11 +24,22 @@ const getCorsHeaders = (origin: string | null) => {
   };
 };
 
+const json = (status: number, headers: Record<string, string>, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers });
+
+const parseBody = async (req: Request) => {
+  try {
+    return await req.json();
+  } catch {
+    return null;
+  }
+};
+
 serve(async (req: Request) => {
   const logger = createStructuredLogger("snaptrade-register-user-v2");
   const corsHeaders = getCorsHeaders(req.headers.get("origin"));
 
-  logger.info("S0", "Receive request to register or refresh SnapTrade user context", {
+  logger.info("S0", "Receive request to register SnapTrade user context", {
     method: req.method,
     origin: req.headers.get("origin") ?? "",
   });
@@ -40,10 +54,7 @@ serve(async (req: Request) => {
       receivedMethod: req.method,
       expectedMethod: "POST",
     });
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: corsHeaders,
-    });
+    return json(405, corsHeaders, { error: "Method not allowed" });
   }
 
   const SNAPTRADE_CLIENT_ID = Deno.env.get("SNAPTRADE_CLIENT_ID");
@@ -58,40 +69,30 @@ serve(async (req: Request) => {
       hasSupabaseUrl: Boolean(SUPABASE_URL),
       hasServiceRoleKey: Boolean(SERVICE_ROLE_KEY),
     });
-    return new Response(
-      JSON.stringify({
-        error: "Missing required server configuration",
-        hasClientId: Boolean(SNAPTRADE_CLIENT_ID),
-        hasConsumerKey: Boolean(SNAPTRADE_CONSUMER_KEY),
-        hasSupabaseUrl: Boolean(SUPABASE_URL),
-        hasServiceRoleKey: Boolean(SERVICE_ROLE_KEY),
-      }),
-      { status: 500, headers: corsHeaders }
-    );
+    return json(500, corsHeaders, {
+      error: "Missing required server configuration",
+      hasClientId: Boolean(SNAPTRADE_CLIENT_ID),
+      hasConsumerKey: Boolean(SNAPTRADE_CONSUMER_KEY),
+      hasSupabaseUrl: Boolean(SUPABASE_URL),
+      hasServiceRoleKey: Boolean(SERVICE_ROLE_KEY),
+    });
   }
 
-  let userId: string | undefined;
-  try {
-    const body = await req.json();
-    userId = body?.userId;
-  } catch {
+  const body = await parseBody(req);
+  if (!body) {
     logger.warn("S4", "Reject request because registration payload is invalid JSON", {
       expectedField: "userId",
     });
-    return new Response(JSON.stringify({ error: "Missing or invalid request body" }), {
-      status: 400,
-      headers: corsHeaders,
-    });
+    return json(400, corsHeaders, { error: "Missing or invalid request body" });
   }
+
+  const userId = String(body?.userId || "").trim();
 
   if (!userId) {
     logger.warn("S5", "Reject request because userId is missing", {
       hasUserId: Boolean(userId),
     });
-    return new Response(JSON.stringify({ error: "Missing userId" }), {
-      status: 400,
-      headers: corsHeaders,
-    });
+    return json(400, corsHeaders, { error: "Missing userId" });
   }
 
   try {
@@ -116,10 +117,9 @@ serve(async (req: Request) => {
         userId,
         hasResponseData: Boolean(response?.data),
       });
-      return new Response(
-        JSON.stringify({ error: "SnapTrade registration succeeded but userSecret is missing" }),
-        { status: 502, headers: corsHeaders }
-      );
+      return json(502, corsHeaders, {
+        error: "SnapTrade registration succeeded but userSecret is missing",
+      });
     }
 
     const { error: persistError } = await supabase
@@ -137,24 +137,18 @@ serve(async (req: Request) => {
         userId,
         persistError: persistError.message,
       });
-      return new Response(
-        JSON.stringify({
-          error: "Failed to persist SnapTrade user context",
-          persistError: persistError.message,
-        }),
-        { status: 500, headers: corsHeaders }
-      );
+      return json(500, corsHeaders, {
+        error: "Failed to persist SnapTrade user context",
+        persistError: persistError.message,
+      });
     }
 
-    logger.info("S9", "SnapTrade user registration workflow completed successfully", {
+    logger.info("S9", "SnapTrade user registration completed", {
       userId,
       persistedInTable: "snaptrade_users",
     });
 
-    return new Response(JSON.stringify(response.data), {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return json(200, corsHeaders, response.data);
   } catch (error: any) {
     logger.error("S10", "SnapTrade registration workflow failed due to upstream or DB exception", {
       userId,
@@ -162,16 +156,10 @@ serve(async (req: Request) => {
       upstreamStatus: error?.response?.status,
       upstreamData: error?.response?.data,
     });
-    return new Response(
-      JSON.stringify({
-        error: error?.message || "SnapTrade registration failed",
-        upstreamStatus: error?.response?.status,
-        upstreamData: error?.response?.data,
-      }),
-      {
-        status: error?.response?.status || 500,
-        headers: corsHeaders,
-      }
-    );
+    return json(error?.response?.status || 500, corsHeaders, {
+      error: error?.message || "SnapTrade registration failed",
+      upstreamStatus: error?.response?.status,
+      upstreamData: error?.response?.data,
+    });
   }
 });

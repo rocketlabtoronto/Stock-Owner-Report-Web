@@ -9,8 +9,6 @@ import theme from "assets/theme";
 import themeDark from "assets/theme-dark";
 import routes from "routes";
 import { useCustomController } from "context";
-import { useAuthStore } from "stores/useAuthStore";
-import { supabase } from "./supabaseClient";
 import brand from "assets/images/logo-ct.png";
 import brandDark from "assets/images/logo-ct-dark.png";
 
@@ -18,30 +16,10 @@ export default function App() {
   const [controller] = useCustomController();
   const { layout, sidenavColor, darkSidenav, darkMode, miniSidenav } = controller;
   const { pathname } = useLocation();
-  const setUser = useAuthStore((state) => state.setUser);
   useEffect(() => {
     document.documentElement.scrollTop = 0;
     document.scrollingElement.scrollTop = 0;
   }, [pathname]);
-
-  useEffect(() => {
-    // Check current session
-    const getSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) setUser(session.user);
-    };
-
-    getSession();
-
-    // Listen for auth changes (login/logout)
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) setUser(session.user);
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
 
   const getRoutes = (allRoutes) =>
     allRoutes.map((route) => {

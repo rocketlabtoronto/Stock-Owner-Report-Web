@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createStructuredLogger } from "../_shared/logging.ts";
 
+// Business purpose: apply a new password hash when a valid one-time token is provided.
+
 function normalizeOrigin(value: string): string {
   return value.trim().replace(/\/$/, "");
 }
@@ -50,6 +52,14 @@ function json(req: Request, status: number, body: unknown) {
   });
 }
 
+async function parseBody(req: Request) {
+  try {
+    return await req.json();
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req: Request) => {
   const logger = createStructuredLogger("set-password-with-token");
 
@@ -92,18 +102,16 @@ serve(async (req: Request) => {
     auth: { persistSession: false },
   });
 
-  let token = "";
-  let passwordHash = "";
-  try {
-    const body = await req.json();
-    token = String(body?.token ?? "").trim();
-    passwordHash = String(body?.passwordHash ?? "").trim();
-  } catch {
+  const body = await parseBody(req);
+  if (!body) {
     logger.warn("S5", "Reject password update due to invalid payload JSON", {
       expectedFields: ["token", "passwordHash"],
     });
     return json(req, 400, { error: "Invalid request body" });
   }
+
+  const token = String(body?.token ?? "").trim();
+  const passwordHash = String(body?.passwordHash ?? "").trim();
 
   if (!token || !passwordHash) {
     logger.warn("S6", "Reject password update because required credentials are missing", {

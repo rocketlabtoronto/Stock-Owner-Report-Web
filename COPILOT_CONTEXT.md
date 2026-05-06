@@ -108,9 +108,11 @@ Business rules:
 
 ### `useAuthStore` (`auth-storage`)
 Persisted fields:
-- `user`
 - `snapTradeUserId`
 - `snapUserSecret`
+
+Runtime-only field:
+- `user`
 
 ### `useAppStore` (`app-storage`)
 Persisted fields:
@@ -124,13 +126,12 @@ Persisted fields:
 
 Additional behavior:
 - Optional fake equity injection (`REACT_APP_FAKE_EQUITY`) augments a selected account for testing.
-- `resetStorage()` clears `app-storage` and resets in-memory app slices.
 
 ## Routing & UX Contract
 - Public entrypoint: `/brokeragesAndAccounts`.
 - Hidden utility routes include login/reset/set-password and snaptrade redirect.
-- Sidenav sign out clears auth + app storage.
-- Top navbar logout clears auth only (current mismatch, intentional current-state documentation).
+- Sidenav sign out and navbar logout both clear app session user state only.
+- Sign out does not clear `auth-storage` or `app-storage`.
 
 ## Backend Surface Map
 
@@ -175,8 +176,9 @@ Edge Function secrets:
 
 ## Known Code Realities (Important)
 - Frontend references `snaptrade-register-user-v2`; local repo contains `snaptrade-register-user` (remote/local drift).
-- `supabaseClient.ts` uses `auth.persistSession: false`; app login continuity is driven by Zustand persistence.
-- Account cache can persist after navbar logout because that path does not call `resetStorage()`.
+- `supabaseClient.ts` uses `auth.persistSession: false`; App no longer bootstraps login state from Supabase Auth listeners.
+- SnapTrade modal waits for auth-storage hydration before attempting credential resolution.
+- `login-user` requires `userId` + `userSecret` from frontend and does not perform backend credential fallback.
 
 ## Editing Guardrails
 - Keep business rules unchanged unless explicitly requested.

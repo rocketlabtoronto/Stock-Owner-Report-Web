@@ -56,13 +56,11 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
   const user = useAuthStore((s) => s.user);
   const clearUser = useAuthStore((s) => s.clearUser);
   const accounts = useAppStore((s) => s.accounts);
-  const resetStorage = useAppStore((s) => s.resetStorage);
   const hasBrokerageConnected =
     Array.isArray(accounts) && accounts.length > 0;
 
   const handleSignOut = () => {
     clearUser();
-    resetStorage();
     window.location.href = "/login";
   };
 

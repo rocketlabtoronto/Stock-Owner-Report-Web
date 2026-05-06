@@ -77,7 +77,7 @@
       <div class="meta">
         <div><strong>Document Type:</strong> As-Built BRD</div>
         <div><strong>Source:</strong> Existing codebase behavior</div>
-        <div><strong>Date:</strong> 2026-04-28</div>
+        <div><strong>Date:</strong> 2026-05-05</div>
         <div><strong>Status:</strong> Draft for stakeholder review</div>
       </div>
       <p style="margin-top:10px">
@@ -175,12 +175,12 @@
           <tr>
             <td>FR-A4</td>
             <td>The system shall persist auth context in browser local storage.</td>
-            <td><code>auth-storage</code> retains user + SnapTrade transient context.</td>
+            <td><code>auth-storage</code> retains SnapTrade credential context; logged-in user profile remains runtime-only.</td>
           </tr>
           <tr>
             <td>FR-A5</td>
             <td>The system shall provide logout actions from multiple UI entry points.</td>
-            <td>Sidenav sign out clears auth and app cache; navbar logout clears auth only (as-built).</td>
+            <td>Sidenav and navbar logout clear runtime user session and redirect to login; persisted storage is not force-cleared.</td>
           </tr>
         </tbody>
       </table>
@@ -228,13 +228,13 @@
           </tr>
           <tr>
             <td>FR-C3</td>
-            <td>The system shall create transient SnapTrade user context for direct connect.</td>
-            <td>Generates transient user ID, obtains user secret, requests login link, opens portal iframe.</td>
+            <td>The system shall use stored SnapTrade credentials when complete, and register only when missing.</td>
+            <td>Uses <code>auth-storage</code> credential pair when present; otherwise registers once, stores pair, and requests login link.</td>
           </tr>
           <tr>
             <td>FR-C4</td>
             <td>The system shall process SnapTrade completion events.</td>
-            <td>Success event redirects to sync route; errors trigger fallback/manual guidance.</td>
+            <td>Success event redirects to sync route; backend fetches accounts then performs mandatory disconnect; errors are surfaced with fallback/manual guidance.</td>
           </tr>
           <tr>
             <td>FR-C5</td>
@@ -327,8 +327,9 @@
       <ol>
         <li>User opens Connect Brokerage dialog.</li>
         <li>System evaluates direct/manual eligibility.</li>
-        <li>If direct: register transient user, get portal URL, launch iframe, await completion events.</li>
-        <li>On success: redirect to sync route and fetch account data from backend.</li>
+        <li>If direct: wait for auth-store hydration, then use stored SnapTrade credentials if complete; otherwise register once and store the new pair.</li>
+        <li>Request portal URL, launch iframe, await completion events.</li>
+        <li>On success: redirect to sync route, fetch account data from backend, then perform mandatory disconnect cleanup.</li>
         <li>Map and persist account/holdings slices; timestamp connection.</li>
         <li>If direct fails/times out: display manual upload fallback.</li>
       </ol>
@@ -375,6 +376,11 @@
             <td><code>password_reset_tokens</code></td>
             <td>Password lifecycle token store</td>
             <td>email, token, expires_at</td>
+          </tr>
+          <tr>
+            <td><code>snaptrade_users</code></td>
+            <td>Operational auditability of SnapTrade credential pairs used for integrations</td>
+            <td>user_id, user_secret, created_at/updated_at</td>
           </tr>
           <tr>
             <td><code>webhook_logs</code></td>
@@ -445,10 +451,9 @@
     <section>
       <h2>9. Known Gaps / As-Built Risks</h2>
       <ul>
-        <li><span class="note">Logout inconsistency:</span> Sidenav Sign Out clears app cache; top-navbar Logout does not.</li>
         <li><span class="note">Production logging verbosity:</span> Multiple client-side <code>console.log</code> debug statements remain in core user flows (brokerage, set-password, statement aggregation), increasing noise and potential data exposure in browser logs.</li>
         <li><span class="note">Security posture:</span> encryption key and salt are hardcoded client-side for password crypto workflow.</li>
-        <li><span class="note">Auth model divergence:</span> app mixes custom user-table login with Supabase auth event listeners.</li>
+        <li><span class="note">Credential recovery policy:</span> if a stored SnapTrade pair becomes invalid, the flow fails visibly and requires explicit remediation (no silent auto-regeneration path).</li>
       </ul>
     </section>
 

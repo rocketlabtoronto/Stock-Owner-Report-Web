@@ -2,11 +2,15 @@ import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 import { createStructuredLogger } from "../_shared/logging.ts";
 
+// Business purpose: list SnapTrade users for operations visibility and support workflows.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: corsHeaders });
 
 serve(async (req: Request) => {
   const logger = createStructuredLogger("get-users");
@@ -35,16 +39,15 @@ serve(async (req: Request) => {
     logger.info("S3", "Return upstream user list to caller", {
       userCount: Array.isArray(response.data) ? response.data.length : undefined,
     });
-    return new Response(JSON.stringify(response.data), { status: 200, headers: corsHeaders });
+    return json(200, response.data);
   } catch (error: any) {
     logger.error("S4", "Listing SnapTrade users failed due to upstream/API error", {
       upstreamStatus: error?.response?.status,
       upstreamData: error?.response?.data,
       message: error?.message,
     });
-    return new Response(JSON.stringify({ error: error.response?.data || error.message }), {
-      status: error.response?.status || 500,
-      headers: corsHeaders,
+    return json(error.response?.status || 500, {
+      error: error.response?.data || error.message,
     });
   }
 });
