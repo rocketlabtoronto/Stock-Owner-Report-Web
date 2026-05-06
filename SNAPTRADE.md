@@ -84,7 +84,7 @@ Mapping rules (`snaptradeMappingService`):
 - allows either supplied `userSecret` or fallback lookup from `users.snapusersecret`
 - calls SnapTrade `loginSnapTradeUser`
 - rewrites redirect URI params when missing
-- logs detailed step markers to `dashboard.webhook_logs`
+- emits structured runtime logs to Supabase Functions Logs
 
 ### `snaptrade-accounts`
 - validates env + `userId/userSecret`
@@ -93,7 +93,7 @@ Mapping rules (`snaptradeMappingService`):
   - fetch holdings with retry/backoff
   - fetch details with retry/backoff
 - returns combined `{ accounts: [...] }`
-- writes diagnostics to `dashboard.webhook_logs`
+- emits structured runtime logs to Supabase Functions Logs
 
 ### `snaptrade-register-user` (legacy/local)
 - requires auth header

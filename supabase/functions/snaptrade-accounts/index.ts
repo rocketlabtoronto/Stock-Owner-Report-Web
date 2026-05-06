@@ -11,9 +11,7 @@ serve(async (req: Request) => {
     origin: req.headers.get("origin") ?? "",
   });
 
-  // Server configuration is required for both SnapTrade API access and operational diagnostics.
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-  const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  // Server configuration is required for SnapTrade API access.
   const SNAPTRADE_CLIENT_ID = Deno.env.get("SNAPTRADE_CLIENT_ID");
   const SNAPTRADE_CONSUMER_KEY = Deno.env.get("SNAPTRADE_CONSUMER_KEY");
 
@@ -22,46 +20,6 @@ serve(async (req: Request) => {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, content-profile, accept-profile",
     "Content-Type": "application/json",
-  };
-
-  const logWebhookError = async (eventType: string, step: number, errorMsg: string) => {
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-      logger.error("S1", "Cannot persist diagnostic event because logging DB config is missing", {
-        hasSupabaseUrl: !!SUPABASE_URL,
-        hasServiceRoleKey: !!SERVICE_ROLE_KEY,
-      });
-      return;
-    }
-
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/webhook_logs`, {
-        method: "POST",
-        headers: {
-          apikey: SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          event_type: eventType,
-          email: "unknown",
-          timestamp: new Date().toISOString(),
-          error_message: errorMsg,
-          step,
-        }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        logger.error("S2", "Failed writing diagnostic row to webhook_logs table", {
-          status: res.status,
-          body: text,
-        });
-      }
-    } catch (error) {
-      logger.error("S3", "Exception while writing diagnostic row to webhook_logs", {
-        error,
-      });
-    }
   };
 
   if (req.method === "OPTIONS") {
@@ -99,10 +57,8 @@ serve(async (req: Request) => {
     });
   }
 
-  if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !SNAPTRADE_CLIENT_ID || !SNAPTRADE_CONSUMER_KEY) {
+  if (!SNAPTRADE_CLIENT_ID || !SNAPTRADE_CONSUMER_KEY) {
     logger.error("S7", "Stop account aggregation because server configuration is incomplete", {
-      hasSupabaseUrl: !!SUPABASE_URL,
-      hasServiceRoleKey: !!SERVICE_ROLE_KEY,
       hasSnaptradeClientId: !!SNAPTRADE_CLIENT_ID,
       hasSnaptradeConsumerKey: !!SNAPTRADE_CONSUMER_KEY,
     });
@@ -180,11 +136,6 @@ serve(async (req: Request) => {
       count: accounts.length,
       sample: accountSample,
     });
-    await logWebhookError(
-      "snaptrade-accounts-debug",
-      200,
-      `Accounts: ${JSON.stringify(accountSample.slice(0, 5))}`
-    );
 
     // === Step 2: For each account, get holdings and details ===
     // Process accounts sequentially to avoid burst concurrency against SnapTrade.
@@ -210,11 +161,12 @@ serve(async (req: Request) => {
             return holdingsRes.data;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            await logWebhookError(
-              "snaptrade-accounts-account",
-              2,
-              `Holdings failed for ${account.id} (${account.name}): ${message}`
-            );
+            logger.error("S13", "Failed to fetch holdings for account", {
+              userId,
+              accountId: account.id,
+              accountName: account.name,
+              message,
+            });
             return null;
           }
         };
@@ -234,11 +186,12 @@ serve(async (req: Request) => {
             return detailsRes.data;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            await logWebhookError(
-              "snaptrade-accounts-account",
-              3,
-              `Details failed for ${account.id} (${account.name}): ${message}`
-            );
+            logger.error("S14", "Failed to fetch account details", {
+              userId,
+              accountId: account.id,
+              accountName: account.name,
+              message,
+            });
             return null;
           }
         };
@@ -285,11 +238,6 @@ serve(async (req: Request) => {
       message: errorMessage,
       userId,
     });
-    await logWebhookError(
-      "snaptrade-accounts",
-      500,
-      `User: ${userId || "unknown"} | ${errorMessage}`
-    );
     return new Response(
       JSON.stringify({ error: errorMessage || "Failed to fetch SnapTrade account data" }),
       { status: 500, headers: corsHeaders }
