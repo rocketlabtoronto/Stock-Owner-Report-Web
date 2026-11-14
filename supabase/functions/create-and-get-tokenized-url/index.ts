@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createStructuredLogger } from "../_shared/logging.ts";
+import { createCorsHeaders, createJsonResponder, parseBody } from "../_shared/http.ts";
 
 // Business purpose: issue a time-limited tokenized URL used by password setup/reset email workflows.
 const TOKEN_EXPIRY_MINUTES = 24 * 60;
@@ -8,33 +9,14 @@ const SET_PASSWORD_PATH = "/set-password";
 const APP_BASE_URL = (Deno.env.get("APP_BASE_URL") ?? "").replace(/\/$/, "");
 const ALLOWED_ORIGINS = new Set(APP_BASE_URL ? [APP_BASE_URL] : []);
 
-const buildCorsHeaders = (req: Request): HeadersInit => {
-  const origin = req.headers.get("origin") ?? "";
-  return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.has(origin) ? origin : "",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
-    "Access-Control-Max-Age": "86400",
-    Vary: "Origin",
-  };
-};
-
-const json = (req: Request, status: number, body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" },
-  });
-
-const parseBody = async (req: Request) => {
-  try {
-    return await req.json();
-  } catch {
-    return null;
-  }
-};
+const buildCorsHeaders = createCorsHeaders(ALLOWED_ORIGINS, undefined, "");
 
 serve(async (req: Request) => {
   const logger = createStructuredLogger("create-and-get-tokenized-url");
+  const json = createJsonResponder({
+    ...buildCorsHeaders(req),
+    "Content-Type": "application/json",
+  });
   logger.info("S0", "Receive request to create password tokenized URL", {
     method: req.method,
     origin: req.headers.get("origin") ?? "",
@@ -45,7 +27,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return json(req, 405, { error: "Method not allowed" });
+    return json(405, { error: "Method not allowed" });
   }
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -58,20 +40,20 @@ serve(async (req: Request) => {
       hasServiceRoleKey: Boolean(SERVICE_ROLE_KEY),
       hasPostmarkToken: Boolean(POSTMARK_TOKEN),
     });
-    return json(req, 500, {
+    return json(500, {
       error: "Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / POSTMARK_SERVER_TOKEN",
     });
   }
 
   if (!APP_BASE_URL) {
     logger.error("S2", "APP_BASE_URL is required to build customer reset links");
-    return json(req, 500, { error: "Missing APP_BASE_URL" });
+    return json(500, { error: "Missing APP_BASE_URL" });
   }
 
   const body = await parseBody(req);
   const email = String(body?.email ?? "").trim();
   if (!email) {
-    return json(req, 400, { error: "Missing email" });
+    return json(400, { error: "Missing email" });
   }
 
   const token = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -90,9 +72,9 @@ serve(async (req: Request) => {
       email,
       message: upsertError.message,
     });
-    return json(req, 500, { error: "Could not save token" });
+    return json(500, { error: "Could not save token" });
   }
 
   const tokenizedUrl = `${APP_BASE_URL}${SET_PASSWORD_PATH}?token=${encodeURIComponent(token)}`;
-  return json(req, 200, { success: true, tokenizedUrl });
+  return json(200, { success: true, tokenizedUrl });
 });

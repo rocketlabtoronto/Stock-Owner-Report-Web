@@ -5,10 +5,7 @@ const FAKE_EQUITY_ENABLED =
   String(process.env.REACT_APP_FAKE_EQUITY || process.env.REACT_FAKE_EQUITY || "").toLowerCase() ===
   "true";
 const FAKE_EQUITY_SYMBOLS = ["MSFT", "AMZN", "TSLA", "AAPL", "GS"];
-const PERSISTED_KEYS = [
-  "accounts",
-  "snapTradeLastConnectedAt",
-];
+const PERSISTED_KEYS = ["accounts", "snapTradeLastConnectedAt"];
 
 const normalizeLower = (value) =>
   String(value || "")
@@ -16,10 +13,6 @@ const normalizeLower = (value) =>
     .toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const resolveHoldings = (account) => asArray(account?.holdings);
-const createEmptyStoreData = () => ({
-  accounts: [],
-  snapTradeLastConnectedAt: null,
-});
 const pickPersistedState = (state) =>
   Object.fromEntries(PERSISTED_KEYS.map((key) => [key, state[key]]));
 const resolveAccountKey = (account) => {
@@ -98,51 +91,26 @@ const applyFakeEquitiesToAccounts = (accounts) => {
     return { ...account, holdings: augmented };
   });
 };
-const mergeAccountWithIncomingHoldings = (base, item) => {
-  const merged = { ...base, ...item };
-  const holdings = resolveHoldings(item);
-  return holdings.length ? { ...merged, holdings } : merged;
-};
-const ensureAccountHoldingsFields = (item) => {
-  const holdings = asArray(item?.holdings);
-  return { ...item, holdings };
-};
 const manualBrokerageName = (item) => String(item?.Account || "").split(" - ")[0];
 
 export const useAppStore = create(
   persist(
     (set) => ({
       accounts: [],
-      setAccounts: (data) =>
-        set({ accounts: applyFakeEquitiesToAccounts(data) }),
-      addAccounts: (items) =>
-        set((state) => ({
-          accounts: applyFakeEquitiesToAccounts([
-            ...asArray(state.accounts),
-            ...items,
-          ]),
-        })),
       upsertAccount: (item) =>
         set((state) => {
           const list = [...asArray(state.accounts)];
           const accountKey = resolveAccountKey(item);
           const idx = list.findIndex((x) => resolveAccountKey(x) === accountKey);
           if (idx >= 0) {
-            list[idx] = mergeAccountWithIncomingHoldings(list[idx], item);
+            list[idx] = { ...list[idx], ...item };
           } else {
-            list.push(ensureAccountHoldingsFields(mergeAccountWithIncomingHoldings({}, item)));
+            list.push({ ...item, holdings: asArray(item?.holdings) });
           }
           return { accounts: applyFakeEquitiesToAccounts(list) };
         }),
       snapTradeLastConnectedAt: null,
       setSnapTradeLastConnectedAt: (timestamp) => set({ snapTradeLastConnectedAt: timestamp }),
-
-      clearData: () => set(createEmptyStoreData()),
-
-      resetStorage: () => {
-        localStorage.removeItem("app-storage");
-        set(createEmptyStoreData());
-      },
 
       unlinkBrokerage: (brokerageName) =>
         set((state) => {
@@ -169,7 +137,6 @@ export const useAppStore = create(
     }),
     {
       name: "app-storage",
-      getStorage: () => localStorage,
       partialize: pickPersistedState,
     }
   )

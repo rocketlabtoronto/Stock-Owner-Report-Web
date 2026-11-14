@@ -1,27 +1,12 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 import { createStructuredLogger } from "../_shared/logging.ts";
+import { createJsonResponder, parseBody, snaptradeCorsHeaders } from "../_shared/http.ts";
 
 // Business purpose: disconnect all active brokerage authorizations for a SnapTrade user.
 // This is a mandatory cleanup step after account import workflows.
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, content-profile, accept-profile",
-  "Content-Type": "application/json",
-};
-
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: corsHeaders });
-
-const parseBody = async (req: Request) => {
-  try {
-    return await req.json();
-  } catch {
-    return null;
-  }
-};
+const corsHeaders = snaptradeCorsHeaders;
+const json = createJsonResponder(corsHeaders);
 
 serve(async (req: Request) => {
   const logger = createStructuredLogger("disconnect-user");
@@ -65,10 +50,14 @@ serve(async (req: Request) => {
   const userSecret = String(body?.userSecret || "").trim();
 
   if (!userId || !userSecret) {
-    logger.warn("S5", "Reject disconnect request because required customer identifiers are missing", {
-      hasUserId: Boolean(userId),
-      hasUserSecret: Boolean(userSecret),
-    });
+    logger.warn(
+      "S5",
+      "Reject disconnect request because required customer identifiers are missing",
+      {
+        hasUserId: Boolean(userId),
+        hasUserSecret: Boolean(userSecret),
+      }
+    );
     return json(400, { error: "Missing userId or userSecret in request body" });
   }
 

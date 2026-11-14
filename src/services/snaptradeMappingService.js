@@ -20,10 +20,6 @@ export const inferBankFromName = (name) => {
   return "logo_image";
 };
 
-const toNumber = (value) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-};
 const asArray = (value) => (Array.isArray(value) ? value : []);
 
 const resolveSymbol = (position) =>
@@ -57,120 +53,38 @@ const mapPositionsToHoldings = (positions = []) =>
 const resolveAccountNumber = (details = {}) =>
   details?.meta?.accountNumberActual || details?.number || details?.id || "";
 
-const resolveAsOfDate = (details = {}) =>
-  details?.sync_status?.holdings?.last_successful_sync || new Date().toISOString();
-
-const resolveCash = (balances = []) => {
-  if (!Array.isArray(balances) || balances.length === 0) return 0;
-  return balances.reduce((sum, bal) => sum + (toNumber(bal?.cash) || 0), 0);
-};
-
-const toDisplayAccount = ({
-  account,
-  accountRaw,
-  safeBrokerageName,
-  bank,
-  details,
-  accountNumber,
-  totalValue,
-  mappedHoldings,
-}) => ({
-  id: account?.id || accountRaw,
-  brokerageName: safeBrokerageName,
-  brokerageLogo: null,
-  accountType: details?.meta?.type || details?.raw_type || "Account",
-  accountNumber,
-  equitiesValue: totalValue,
-  balance: totalValue,
-  included: true,
-  holdings: mappedHoldings,
-  bank,
-});
-
+// Map once into the canonical account shape stored by the dashboard.
 export const mapSnapTradeAccountsToSpreadsheet = (accounts = []) => {
   const mappedItems = [];
-  const holdingsByAccount = {};
-  const flatHoldings = [];
-  const displayAccounts = [];
   const seenAccounts = new Map();
-
   asArray(accounts).forEach((account, index) => {
     const details = account?.details || {};
-    const holdings = account?.holdings || {};
     const accountNumber = resolveAccountNumber(details);
     const brokerageName =
-      details?.institution_name ||
-      details?.meta?.institution_name ||
+      details.institution_name ||
+      details.meta?.institution_name ||
       account?.institution_name ||
       account?.brokerage ||
-      "";
-    const safeBrokerageName = brokerageName || "Unknown Brokerage";
+      "Unknown Brokerage";
     const accountLabel =
       accountNumber ||
       account?.name ||
-      details?.name ||
+      details.name ||
       account?.id ||
-      details?.id ||
+      details.id ||
       `account-${index + 1}`;
-    const accountRaw = `${safeBrokerageName} - ${accountLabel}`;
-    const dedupeKey = `${safeBrokerageName}::${accountLabel}::${account?.id || index}`;
-
-    const mappedHoldings = mapPositionsToHoldings(asArray(holdings?.positions));
-    const bank = inferBankFromName(safeBrokerageName);
-
-    const cash = resolveCash(holdings?.balances || []);
-    const equitiesValue = mappedHoldings.reduce((sum, holding) => {
-      const qty = Number(holding?.Quantity ?? 0);
-      const price = Number(holding?.currentPrice ?? 0);
-      const positionValue = Number.isFinite(qty) && Number.isFinite(price) ? qty * price : 0;
-      return sum + positionValue;
-    }, 0);
-    const totalValue = Number.isFinite(equitiesValue) ? equitiesValue : 0;
-    const investments = totalValue - cash;
-
-    const firstTable = {
-      "As of Date": resolveAsOfDate(details),
-      Account: accountRaw,
-      Cash: cash,
-      Investments: investments,
-      "Total Value": totalValue,
-      Margin: details?.meta?.type || null,
+    const dedupeKey = `${brokerageName}::${accountLabel}::${account?.id || index}`;
+    const item = {
+      accountRaw: `${brokerageName} - ${accountLabel}`,
+      bank: inferBankFromName(brokerageName),
+      holdings: mapPositionsToHoldings(asArray(account?.holdings?.positions)),
     };
-
-    const secondTable = mappedHoldings;
-
-    const mappedItem = {
-      firstTable,
-      secondTable: mappedHoldings,
-      accountRaw,
-      bank,
-      holdings: mappedHoldings,
-    };
-
-    const displayAccount = toDisplayAccount({
-      account,
-      accountRaw,
-      safeBrokerageName,
-      bank,
-      details,
-      accountNumber,
-      totalValue,
-      mappedHoldings,
-    });
     const existingIndex = seenAccounts.get(dedupeKey);
-
-    if (existingIndex !== undefined) {
-      mappedItems[existingIndex] = mappedItem;
-      displayAccounts[existingIndex] = displayAccount;
-    } else {
+    if (existingIndex !== undefined) mappedItems[existingIndex] = item;
+    else {
       seenAccounts.set(dedupeKey, mappedItems.length);
-      mappedItems.push(mappedItem);
-      displayAccounts.push(displayAccount);
+      mappedItems.push(item);
     }
-
-    holdingsByAccount[accountRaw] = mappedHoldings;
-    flatHoldings.push(...mappedHoldings);
   });
-
-  return { mappedItems, holdingsByAccount, flatHoldings, displayAccounts };
+  return { mappedItems };
 };

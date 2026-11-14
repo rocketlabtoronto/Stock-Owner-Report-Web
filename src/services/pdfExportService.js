@@ -17,7 +17,7 @@ const escapeHtml = (value) =>
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
 const downloadBlob = (blob, fileName) => {
@@ -32,30 +32,13 @@ const downloadBlob = (blob, fileName) => {
 };
 
 const createReportFileName = (title, extension) =>
-  `${(title || "report").toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+  `${(title || "report").toLowerCase().replace(/\s+/g, "-")}-${new Date()
+    .toISOString()
+    .slice(0, 10)}.${extension}`;
 
 const getCellValue = (row, columnName) => {
   const value = row?.[columnName];
   return value == null ? "" : String(value);
-};
-
-const truncateToWidth = (doc, text, maxWidth) => {
-  const raw = String(text || "");
-  if (!raw) {
-    return "";
-  }
-
-  if (doc.getTextWidth(raw) <= maxWidth) {
-    return raw;
-  }
-
-  const ellipsis = "...";
-  let candidate = raw;
-  while (candidate.length > 0 && doc.getTextWidth(`${candidate}${ellipsis}`) > maxWidth) {
-    candidate = candidate.slice(0, -1);
-  }
-
-  return candidate ? `${candidate}${ellipsis}` : ellipsis;
 };
 
 const getColumnWidths = (availableWidth, columnCount) => {
@@ -134,7 +117,11 @@ const createPdfCanvas = (pageWidth, pageHeight) => {
   return { canvas, context };
 };
 
-const drawCanvasPageHeader = (context, pageWidth, { title, subtitle, accountLabel, generatedAt }) => {
+const drawCanvasPageHeader = (
+  context,
+  pageWidth,
+  { title, subtitle, accountLabel, generatedAt }
+) => {
   context.fillStyle = rgb(NAVY);
   context.fillRect(0, 0, pageWidth, 62);
 
@@ -180,7 +167,9 @@ const drawCanvasTableRows = (context, columns, rows, startX, startY, columnWidth
   rows.forEach((row, rowIndex) => {
     const isTotalRow = rowIndex === rows.length - 1;
     context.fillStyle = rgb(BODY);
-    context.font = `${isTotalRow ? "bold" : "normal"} ${TABLE_FONT_SIZE}px Helvetica, Arial, sans-serif`;
+    context.font = `${
+      isTotalRow ? "bold" : "normal"
+    } ${TABLE_FONT_SIZE}px Helvetica, Arial, sans-serif`;
 
     let cursorX = startX;
     columns.forEach((column, columnIndex) => {
@@ -202,7 +191,15 @@ const drawCanvasTableRows = (context, columns, rows, startX, startY, columnWidth
   });
 };
 
-const buildRasterizedPdfPages = ({ pageWidth, pageHeight, title, subtitle, accountLabel, columns, rows }) => {
+const buildRasterizedPdfPages = ({
+  pageWidth,
+  pageHeight,
+  title,
+  subtitle,
+  accountLabel,
+  columns,
+  rows,
+}) => {
   if (!Array.isArray(columns) || !columns.length) {
     return [];
   }
@@ -226,45 +223,6 @@ const buildRasterizedPdfPages = ({ pageWidth, pageHeight, title, subtitle, accou
     drawCanvasTableRows(context, columns, pageRows, startX, tableStartY, columnWidths);
 
     return canvas.toDataURL("image/png");
-  });
-};
-
-const drawTableHeaderRow = (doc, columns, startX, y, columnWidths) => {
-  const totalWidth = columnWidths.reduce((sum, width) => sum + width, 0);
-  doc.setFillColor(...NAVY);
-  doc.rect(startX, y, totalWidth, HEADER_ROW_HEIGHT, "F");
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(TABLE_FONT_SIZE);
-
-  let cursorX = startX;
-  columns.forEach((column, index) => {
-    const text = truncateToWidth(doc, column?.name || "", columnWidths[index] - 8);
-    doc.text(text, cursorX + 4, y + 13, { baseline: "alphabetic" });
-    cursorX += columnWidths[index];
-  });
-};
-
-const drawTableBodyRow = (doc, columns, row, startX, y, columnWidths, isTotalRow) => {
-  doc.setTextColor(...BODY);
-  doc.setFont("helvetica", isTotalRow ? "bold" : "normal");
-  doc.setFontSize(TABLE_FONT_SIZE);
-
-  let cursorX = startX;
-  columns.forEach((column, index) => {
-    const rawText = getCellValue(row, column.name);
-    const text = truncateToWidth(doc, rawText, columnWidths[index] - 8);
-
-    if (index > 1) {
-      const textWidth = doc.getTextWidth(text);
-      const textX = cursorX + columnWidths[index] - textWidth - 4;
-      doc.text(text, Math.max(cursorX + 4, textX), y + 13, { baseline: "alphabetic" });
-    } else {
-      doc.text(text, cursorX + 4, y + 13, { baseline: "alphabetic" });
-    }
-
-    cursorX += columnWidths[index];
   });
 };
 
@@ -298,7 +256,11 @@ const addTotalRow = (columns = [], rows = []) => {
 
   const firstColumnName = columns[0]?.name;
   const lastRowFirstCell = rows[rows.length - 1]?.[firstColumnName];
-  if (String(lastRowFirstCell || "").trim().toLowerCase() === "total") {
+  if (
+    String(lastRowFirstCell || "")
+      .trim()
+      .toLowerCase() === "total"
+  ) {
     return rows;
   }
 
@@ -325,13 +287,17 @@ const addTotalRow = (columns = [], rows = []) => {
   return [...rows, totalRow];
 };
 
-const buildDocumentHtml = ({ title, subtitle, accountLabel, columns = [], rows = [], wordCompatible = false }) => {
+const buildDocumentHtml = ({
+  title,
+  subtitle,
+  accountLabel,
+  columns = [],
+  rows = [],
+  wordCompatible = false,
+}) => {
   const rowsWithTotal = addTotalRow(columns, rows);
   const headerCells = columns
-    .map(
-      (column) =>
-        `<th>${escapeHtml(column?.name || "")}</th>`
-    )
+    .map((column) => `<th>${escapeHtml(column?.name || "")}</th>`)
     .join("");
 
   const bodyRows = rowsWithTotal
@@ -433,71 +399,13 @@ ${htmlTag}
 </html>`;
 };
 
-function drawPageHeader(doc, title, subtitle, accountLabel) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 0, pageWidth, 62, "F");
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text(title || "Report", PAGE_MARGIN, 38);
-
-  doc.setTextColor(...BODY);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  if (subtitle) {
-    doc.text(subtitle, PAGE_MARGIN, 88);
-  }
-
-  doc.setTextColor(...MUTED);
-  doc.setFontSize(10);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, PAGE_MARGIN, 106);
-  if (accountLabel) {
-    doc.text(`Account: ${accountLabel}`, PAGE_MARGIN, 121);
-  }
-
-  return accountLabel ? 138 : 123;
-}
-
-function drawFinancialTable(doc, { columns = [], rows = [], startY }) {
-  if (!Array.isArray(columns) || !columns.length) {
-    return;
-  }
-
-  const rowsWithTotal = addTotalRow(columns, rows);
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const startX = PAGE_MARGIN;
-  const availableWidth = pageWidth - PAGE_MARGIN * 2;
-  const columnWidths = getColumnWidths(availableWidth, columns.length);
-
-  let y = startY;
-  const bottomLimit = pageHeight - 32;
-
-  const drawHeader = () => {
-    drawTableHeaderRow(doc, columns, startX, y, columnWidths);
-    y += HEADER_ROW_HEIGHT + 2;
-  };
-
-  drawHeader();
-
-  rowsWithTotal.forEach((row, index) => {
-    if (y + TABLE_ROW_HEIGHT > bottomLimit) {
-      doc.addPage();
-      y = 34;
-      drawHeader();
-    }
-
-    const isTotalRow = index === rowsWithTotal.length - 1;
-    drawTableBodyRow(doc, columns, row, startX, y, columnWidths, isTotalRow);
-    y += TABLE_ROW_HEIGHT;
-  });
-}
-
-export function exportFinancialReportToPdf({ title, subtitle, accountLabel, columns = [], rows = [] }) {
+export function exportFinancialReportToPdf({
+  title,
+  subtitle,
+  accountLabel,
+  columns = [],
+  rows = [],
+}) {
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -527,58 +435,33 @@ export function exportFinancialReportToPdf({ title, subtitle, accountLabel, colu
   doc.save(fileName);
 }
 
-export function exportFinancialReportToWord({ title, subtitle, accountLabel, columns = [], rows = [] }) {
-  const html = buildDocumentHtml({ title, subtitle, accountLabel, columns, rows, wordCompatible: true });
+export function exportFinancialReportToWord({
+  title,
+  subtitle,
+  accountLabel,
+  columns = [],
+  rows = [],
+}) {
+  const html = buildDocumentHtml({
+    title,
+    subtitle,
+    accountLabel,
+    columns,
+    rows,
+    wordCompatible: true,
+  });
   const blob = new Blob([html], { type: "application/msword" });
   downloadBlob(blob, createReportFileName(title, "doc"));
 }
 
-export function exportFinancialReportToHtml({ title, subtitle, accountLabel, columns = [], rows = [] }) {
+export function exportFinancialReportToHtml({
+  title,
+  subtitle,
+  accountLabel,
+  columns = [],
+  rows = [],
+}) {
   const html = buildDocumentHtml({ title, subtitle, accountLabel, columns, rows });
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   downloadBlob(blob, createReportFileName(title, "html"));
-}
-
-export function exportFinancialStatementsToPdf({
-  title = "Financial Statements",
-  subtitle = "Proportionate share from your holdings.",
-  accountLabel,
-  sections = [],
-}) {
-  const validSections = (Array.isArray(sections) ? sections : []).filter(
-    (section) =>
-      section &&
-      Array.isArray(section.columns) &&
-      section.columns.length > 0 &&
-      Array.isArray(section.rows) &&
-      section.rows.length > 0
-  );
-
-  if (!validSections.length) {
-    return;
-  }
-
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-
-  validSections.forEach((section, index) => {
-    if (index > 0) {
-      doc.addPage();
-    }
-
-    const sectionStartY = drawPageHeader(
-      doc,
-      `${title} - ${section.title || `Section ${index + 1}`}`,
-      index === 0 ? subtitle : section.subtitle,
-      accountLabel
-    );
-
-    drawFinancialTable(doc, {
-      columns: section.columns,
-      rows: section.rows,
-      startY: sectionStartY,
-    });
-  });
-
-  const fileName = `${title.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`;
-  doc.save(fileName);
 }

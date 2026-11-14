@@ -1,44 +1,22 @@
 import { forwardRef } from "react";
 import PropTypes from "prop-types";
-
-// Custom styles for CustomTypography
 import CustomTypographyRoot from "components/CustomTypography/CustomTypographyRoot";
-
-// Custom Dashboard 2 MUI context
-import { useCustomController } from "context";
 
 const CustomTypography = forwardRef(
   (
     { color, fontWeight, textTransform, verticalAlign, textGradient, opacity, children, ...rest },
     ref
-  ) => {
-    const [controller] = useCustomController();
-    const { darkMode } = controller;
-
-    // Remove verticalAlign from props passed to DOM
-    const { verticalAlign: _omit, ...cleanRest } = rest;
-
-    return (
-      <CustomTypographyRoot
-        {...cleanRest}
-        ref={ref}
-        ownerState={{
-          color,
-          fontWeight,
-          textTransform,
-          verticalAlign, // ✅ only used by styled component
-          textGradient,
-          opacity,
-          darkMode,
-        }}
-      >
-        {children}
-      </CustomTypographyRoot>
-    );
-  }
+  ) => (
+    <CustomTypographyRoot
+      {...rest}
+      ref={ref}
+      ownerState={{ color, fontWeight, textTransform, verticalAlign, textGradient, opacity }}
+    >
+      {children}
+    </CustomTypographyRoot>
+  )
 );
 
-// Default props
 CustomTypography.defaultProps = {
   color: "dark",
   fontWeight: false,
@@ -48,7 +26,6 @@ CustomTypography.defaultProps = {
   opacity: 1,
 };
 
-// PropTypes
 CustomTypography.propTypes = {
   color: PropTypes.oneOf([
     "inherit",

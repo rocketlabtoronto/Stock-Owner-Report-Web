@@ -70,10 +70,12 @@ export default function SetPassword() {
     // Step 3: Password strength validation
     const passwordErrors = [];
     if (password.length < 8) passwordErrors.push("Password must be at least 8 characters.");
-    if (!/[A-Z]/.test(password)) passwordErrors.push("Password must contain at least one uppercase letter.");
-    if (!/[a-z]/.test(password)) passwordErrors.push("Password must contain at least one lowercase letter.");
+    if (!/[A-Z]/.test(password))
+      passwordErrors.push("Password must contain at least one uppercase letter.");
+    if (!/[a-z]/.test(password))
+      passwordErrors.push("Password must contain at least one lowercase letter.");
     if (!/[0-9]/.test(password)) passwordErrors.push("Password must contain at least one number.");
-    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(password))
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password))
       passwordErrors.push("Password must contain at least one special character.");
 
     if (passwordErrors.length > 0) {
@@ -131,7 +133,6 @@ export default function SetPassword() {
             marginBottom: 8,
             textAlign: "left",
             padding: "20px",
-            borderRadius: 10,
             background: "#fff",
             border: "1px solid #d6d9de",
             borderTop: "2px solid #0d1b2a",
@@ -139,7 +140,17 @@ export default function SetPassword() {
             boxShadow: "none",
           }}
         >
-          <CustomTypography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", mb: 1, textAlign: "center" }}>
+          <CustomTypography
+            sx={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 3,
+              color: "#6b7280",
+              textTransform: "uppercase",
+              mb: 1,
+              textAlign: "center",
+            }}
+          >
             Password Reset Link
           </CustomTypography>
           <CustomTypography variant="body2" color="error" fontWeight="medium" sx={{ mb: 1.75 }}>
@@ -155,13 +166,16 @@ export default function SetPassword() {
             <br />
             <br />
             <span style={{ fontWeight: 600 }}>
-              For your security, links are valid for 30 minutes and can only be used once. If your link is
-              missing or expired, you will need to request a new one.
+              For your security, links are valid for 30 minutes and can only be used once. If your
+              link is missing or expired, you will need to request a new one.
             </span>
             <br />
             <br />
             Please use the&nbsp;
-            <Link href="/send-password-reset" sx={{ color: "primary.main", textDecoration: "underline", fontWeight: 600 }}>
+            <Link
+              href="/send-password-reset"
+              sx={{ color: "primary.main", textDecoration: "underline", fontWeight: 600 }}
+            >
               Send Password Reset
             </Link>
             &nbsp;page to request a new link.
@@ -178,10 +192,28 @@ export default function SetPassword() {
           {/* ---- Page heading: differs by flow ---- */}
           {isActivation ? (
             <>
-              <CustomTypography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", mb: 1, textAlign: "center" }}>
+              <CustomTypography
+                sx={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 3,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  mb: 1,
+                  textAlign: "center",
+                }}
+              >
                 Account Activation
               </CustomTypography>
-              <CustomTypography sx={{ fontSize: 16, fontWeight: 600, color: "#0d1b2a", mb: 0.5, textAlign: "center" }}>
+              <CustomTypography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: "#0d1b2a",
+                  mb: 0.5,
+                  textAlign: "center",
+                }}
+              >
                 Welcome to The Stock Owner Report
               </CustomTypography>
               <CustomTypography
@@ -196,10 +228,28 @@ export default function SetPassword() {
             </>
           ) : (
             <>
-              <CustomTypography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 3, color: "#6b7280", textTransform: "uppercase", mb: 1, textAlign: "center" }}>
+              <CustomTypography
+                sx={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 3,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  mb: 1,
+                  textAlign: "center",
+                }}
+              >
                 Password Reset
               </CustomTypography>
-              <CustomTypography sx={{ fontSize: 16, fontWeight: 600, color: "#0d1b2a", mb: 0.5, textAlign: "center" }}>
+              <CustomTypography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: "#0d1b2a",
+                  mb: 0.5,
+                  textAlign: "center",
+                }}
+              >
                 Reset Your Password
               </CustomTypography>
               <CustomTypography
@@ -207,14 +257,18 @@ export default function SetPassword() {
                 color="text"
                 sx={{ mb: 2.5, textAlign: "center", lineHeight: 1.7 }}
               >
-                Please enter and confirm your new password below. Once saved, you will be
-                redirected to the login page where you may sign in with your updated credentials.
+                Please enter and confirm your new password below. Once saved, you will be redirected
+                to the login page where you may sign in with your updated credentials.
               </CustomTypography>
             </>
           )}
 
           {success ? (
-            <CustomTypography variant="caption" color="success" sx={{ textAlign: "center", display: "block" }}>
+            <CustomTypography
+              variant="caption"
+              color="success"
+              sx={{ textAlign: "center", display: "block" }}
+            >
               {isActivation
                 ? "Your password has been set. Redirecting you to the login page..."
                 : "Password updated successfully. Redirecting to login..."}
@@ -230,7 +284,13 @@ export default function SetPassword() {
                 variant="outlined"
                 sx={{
                   mb: 2,
-                  "& .MuiOutlinedInput-root": { minHeight: 44, borderRadius: 0, "& fieldset": { borderColor: "#d6d9de" }, "&:hover fieldset": { borderColor: "#8c98a8" }, "&.Mui-focused fieldset": { borderColor: "#0d1b2a", borderWidth: 1.5 } },
+                  "& .MuiOutlinedInput-root": {
+                    minHeight: 44,
+                    borderRadius: 0,
+                    "& fieldset": { borderColor: "#d6d9de" },
+                    "&:hover fieldset": { borderColor: "#8c98a8" },
+                    "&.Mui-focused fieldset": { borderColor: "#0d1b2a", borderWidth: 1.5 },
+                  },
                   "& .MuiInputBase-input": { fontSize: "0.9rem", lineHeight: 1.5, py: 1.2 },
                 }}
               />
@@ -244,7 +304,13 @@ export default function SetPassword() {
                 variant="outlined"
                 sx={{
                   mb: 3,
-                  "& .MuiOutlinedInput-root": { minHeight: 44, borderRadius: 0, "& fieldset": { borderColor: "#d6d9de" }, "&:hover fieldset": { borderColor: "#8c98a8" }, "&.Mui-focused fieldset": { borderColor: "#0d1b2a", borderWidth: 1.5 } },
+                  "& .MuiOutlinedInput-root": {
+                    minHeight: 44,
+                    borderRadius: 0,
+                    "& fieldset": { borderColor: "#d6d9de" },
+                    "&:hover fieldset": { borderColor: "#8c98a8" },
+                    "&.Mui-focused fieldset": { borderColor: "#0d1b2a", borderWidth: 1.5 },
+                  },
                   "& .MuiInputBase-input": { fontSize: "0.9rem", lineHeight: 1.5, py: 1.2 },
                 }}
               />
@@ -262,7 +328,18 @@ export default function SetPassword() {
               <Button
                 variant="contained"
                 fullWidth
-                sx={{ py: 1.2, fontWeight: 700, borderRadius: 0, backgroundColor: "#0d1b2a", boxShadow: "none", textTransform: "uppercase", letterSpacing: 1.5, fontSize: 12, "&:hover": { backgroundColor: "#1a3a5c", boxShadow: "none" }, "&:disabled": { backgroundColor: "#9ca3af", color: "#fff" } }}
+                sx={{
+                  py: 1.2,
+                  fontWeight: 700,
+                  borderRadius: 0,
+                  backgroundColor: "#0d1b2a",
+                  boxShadow: "none",
+                  textTransform: "uppercase",
+                  letterSpacing: 1.5,
+                  fontSize: 12,
+                  "&:hover": { backgroundColor: "#1a3a5c", boxShadow: "none" },
+                  "&:disabled": { backgroundColor: "#9ca3af", color: "#fff" },
+                }}
                 onClick={handleSetPassword}
                 disabled={loading}
               >

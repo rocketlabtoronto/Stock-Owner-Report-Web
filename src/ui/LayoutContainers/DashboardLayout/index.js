@@ -1,27 +1,9 @@
-import { useEffect } from "react";
-
-// react-router-dom components
-import { useLocation } from "react-router-dom";
-
-// prop-types is a library for typechecking of props.
 import PropTypes from "prop-types";
-
-// Custom Dashboard 2 MUI components
 import CustomBox from "components/CustomBox";
+import { useCustomController } from "context";
 
-// Custom Dashboard 2 MUI context
-import { useCustomController, setLayout } from "context";
-
-function DashboardLayout({ bgColor, children, ...rest }) {
-  const [controller, dispatch] = useCustomController();
-  const { miniSidenav, darkMode } = controller;
-  const { pathname } = useLocation();
-
-  useEffect(() => {
-    setLayout(dispatch, "dashboard");
-  }, [pathname]);
-
-  const background = darkMode && !bgColor ? "transparent" : bgColor;
+function DashboardLayout({ children }) {
+  const [{ miniSidenav }] = useCustomController();
 
   return (
     <CustomBox
@@ -30,8 +12,7 @@ function DashboardLayout({ bgColor, children, ...rest }) {
         pb: 1,
         pt: 1,
         minHeight: "100vh",
-        backgroundColor: darkMode ? "#0d1b2a" : "#f7f7f5",
-
+        backgroundColor: "#f7f7f5",
         [breakpoints.up("xl")]: {
           marginLeft: miniSidenav ? pxToRem(120) : pxToRem(284),
           transition: transitions.create(["margin-left", "margin-right"], {
@@ -41,17 +22,11 @@ function DashboardLayout({ bgColor, children, ...rest }) {
         },
       })}
     >
-      {/* Removed header background that created the top gap */}
-      <CustomBox sx={{ display: "none" }} />
       {children}
     </CustomBox>
   );
 }
 
-// Typechecking props for the DashboardLayout
-DashboardLayout.propTypes = {
-  bgColor: PropTypes.string,
-  children: PropTypes.node.isRequired,
-};
+DashboardLayout.propTypes = { children: PropTypes.node.isRequired };
 
 export default DashboardLayout;

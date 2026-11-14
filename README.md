@@ -57,9 +57,32 @@ Restart dev server after env changes.
 ## Development
 
 ```bash
-npm install
+npm ci
 npm start
 ```
+
+The lockfile is committed. Use `npm install` when changing dependencies and include the updated lockfile.
+
+## Code Structure
+
+- [Routes](src/routes.js) load pages on demand; report and PDF dependencies load when a financial page is opened.
+- [Financial statements](src/layouts/financialStatements) share one page, account selector, loading hook, and calculation model. Add report-specific columns and financial tags in [reports.js](src/layouts/financialStatements/reports.js).
+- [Account calculations](src/layouts/brokeragesAndAccounts/accountModel.js) are independent of React; [useAccountBalances](src/layouts/brokeragesAndAccounts/useAccountBalances.js) handles loading and ignores stale requests.
+- [SnapTrade connection context](src/services/snaptradeConnectionService.js) reuses stored credentials and shares concurrent registration requests.
+- [Theme overrides](src/assets/theme/components/index.js) contain the styles used by the app. Unreachable dark-mode template support has been removed.
+- [Edge Function helpers](supabase/functions/_shared) share HTTP/CORS formatting, password email requests, and retry logic. Each endpoint retains its own access policy.
+
+## Verification
+
+```bash
+npm run lint
+npm run test:ci
+npm run test:edge
+npx tsc --noEmit
+npm run build
+```
+
+Frontend tests cover financial calculations, guest access, exports, account switching, shared quotes, and SnapTrade registration. Edge tests verify request contracts using mocked services; `test:edge` requires Node.js 22.18+ for native TypeScript support. Production Edge Functions still run in Deno and should also be checked in that runtime before deployment.
 
 ## Build
 

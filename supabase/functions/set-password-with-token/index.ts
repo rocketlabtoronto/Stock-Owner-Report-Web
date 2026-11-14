@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createStructuredLogger } from "../_shared/logging.ts";
+import { createCorsHeaders, createJsonResponder, parseBody } from "../_shared/http.ts";
 
 // Business purpose: apply a new password hash when a valid one-time token is provided.
 
@@ -27,41 +28,19 @@ function parseAllowedOrigins(): Set<string> {
 
 const ALLOWED_ORIGINS = parseAllowedOrigins();
 
-function buildCorsHeaders(req: Request): HeadersInit {
-  const origin = req.headers.get("origin") ?? "";
-  const isAllowed = origin && ALLOWED_ORIGINS.has(origin);
-
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Max-Age": "86400",
-    Vary: "Origin",
-  };
-
-  if (isAllowed) headers["Access-Control-Allow-Origin"] = origin;
-  return headers;
-}
-
-function json(req: Request, status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...buildCorsHeaders(req),
-      "Content-Type": "application/json",
-    },
-  });
-}
-
-async function parseBody(req: Request) {
-  try {
-    return await req.json();
-  } catch {
-    return null;
-  }
-}
+const buildCorsHeaders = createCorsHeaders(ALLOWED_ORIGINS, {
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Max-Age": "86400",
+  Vary: "Origin",
+});
 
 serve(async (req: Request) => {
   const logger = createStructuredLogger("set-password-with-token");
+  const json = createJsonResponder({
+    ...buildCorsHeaders(req),
+    "Content-Type": "application/json",
+  });
 
   logger.info("S0", "Receive password activation/reset submission", {
     method: req.method,
@@ -78,13 +57,13 @@ serve(async (req: Request) => {
       expectedMethod: "POST",
       receivedMethod: req.method,
     });
-    return json(req, 405, { error: "Method not allowed" });
+    return json(405, { error: "Method not allowed" });
   }
 
   const originHeader = req.headers.get("origin") ?? "";
   if (originHeader && !ALLOWED_ORIGINS.has(originHeader)) {
     logger.error("S3", "Block password update from origin outside allowlist", { originHeader });
-    return json(req, 403, { error: "Origin not allowed" });
+    return json(403, { error: "Origin not allowed" });
   }
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -95,7 +74,7 @@ serve(async (req: Request) => {
       hasSupabaseUrl: Boolean(SUPABASE_URL),
       hasServiceRoleKey: Boolean(SERVICE_ROLE_KEY),
     });
-    return json(req, 500, { error: "Missing server configuration" });
+    return json(500, { error: "Missing server configuration" });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -107,7 +86,7 @@ serve(async (req: Request) => {
     logger.warn("S5", "Reject password update due to invalid payload JSON", {
       expectedFields: ["token", "passwordHash"],
     });
-    return json(req, 400, { error: "Invalid request body" });
+    return json(400, { error: "Invalid request body" });
   }
 
   const token = String(body?.token ?? "").trim();
@@ -118,12 +97,10 @@ serve(async (req: Request) => {
       hasToken: Boolean(token),
       hasPasswordHash: Boolean(passwordHash),
     });
-    return json(req, 400, { error: "Missing token or passwordHash" });
+    return json(400, { error: "Missing token or passwordHash" });
   }
 
-  logger.info("S7", "Validate submitted token against password reset token store", {
-    token,
-  });
+  logger.info("S7", "Validate submitted token against password reset token store");
 
   const { data: tokenRow, error: tokenError } = await supabase
     .from("password_reset_tokens")
@@ -133,20 +110,18 @@ serve(async (req: Request) => {
 
   if (tokenError || !tokenRow) {
     logger.warn("S8", "Token validation failed because token was not found", {
-      token,
       tokenError: tokenError?.message ?? null,
     });
-    return json(req, 400, { error: "Token is invalid or expired" });
+    return json(400, { error: "Token is invalid or expired" });
   }
 
   if (new Date(tokenRow.expires_at) < new Date()) {
     await supabase.from("password_reset_tokens").delete().eq("token", token);
     logger.warn("S9", "Token has expired; cleanup executed to prevent reuse", {
       email: tokenRow.email,
-      token,
       expiresAt: tokenRow.expires_at,
     });
-    return json(req, 400, { error: "Token is invalid or expired" });
+    return json(400, { error: "Token is invalid or expired" });
   }
 
   logger.info("S10", "Apply new password hash to customer account", {
@@ -163,15 +138,14 @@ serve(async (req: Request) => {
       email: tokenRow.email,
       updateError: updateError.message,
     });
-    return json(req, 500, { error: "Could not update password" });
+    return json(500, { error: "Could not update password" });
   }
 
   await supabase.from("password_reset_tokens").delete().eq("token", token);
 
   logger.info("S12", "Password update complete and token invalidated", {
     email: tokenRow.email,
-    token,
   });
 
-  return json(req, 200, { success: true });
+  return json(200, { success: true });
 });

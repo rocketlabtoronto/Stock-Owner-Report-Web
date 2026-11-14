@@ -1,138 +1,91 @@
-import { useState, useEffect } from "react";
-
-// prop-types is a library for typechecking of props.
+import { useState } from "react";
 import PropTypes from "prop-types";
-
-// @mui core components
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
-// import Menu from "@mui/material/Menu"; // Removed duplicate import
-
-
-// Custom styles for DashboardNavbar
-
-
-
-// Custom Dashboard 2 MUI context
-import {
-  useCustomController,
-  setTransparentNavbar,
-} from "context";
-// User info imports
-import { useAuthStore } from "stores/useAuthStore";
 import Avatar from "@mui/material/Avatar";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Divider from "@mui/material/Divider";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import { useAuthStore } from "stores/useAuthStore";
 
-function DashboardNavbar({ absolute }) {
-  const [navbarType, setNavbarType] = useState();
-  const [controller, dispatch] = useCustomController();
-  const { fixedNavbar } = controller;
+function UserSummary({ email, textSx }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        height: "100%",
+      }}
+    >
+      <Typography
+        variant="body2"
+        sx={{ fontWeight: 500, fontSize: 13, lineHeight: 1.2, ...textSx }}
+      >
+        {email}
+      </Typography>
+      <Box sx={{ mt: 0.5 }}>
+        <span
+          style={{
+            background: "#eaecef",
+            color: "#0d1b2a",
+            fontWeight: 600,
+            fontSize: 10,
+            borderRadius: 0,
+            padding: "2px 8px",
+            boxShadow: "none",
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            display: "inline-block",
+            verticalAlign: "middle",
+            border: "1px solid #d6d9de",
+          }}
+        >
+          Logged in
+        </span>
+      </Box>
+    </Box>
+  );
+}
 
-  // Get logged-in user from Zustand
+UserSummary.propTypes = { email: PropTypes.string, textSx: PropTypes.object };
+
+function DashboardNavbar({ absolute = false }) {
   const user = useAuthStore((state) => state.user);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const handleAvatarClick = (event) => setAnchorEl(event.currentTarget);
   const clearUser = useAuthStore((state) => state.clearUser);
-  const handleMenuClose = () => setAnchorEl(null);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const closeMenu = () => setAnchorEl(null);
   const handleLogout = () => {
     clearUser();
-    setAnchorEl(null);
+    closeMenu();
     window.location.href = "/login";
   };
 
-  useEffect(() => {
-    // Setting the navbar type
-    if (fixedNavbar) {
-      setNavbarType("sticky");
-    } else {
-      setNavbarType("static");
-    }
-
-    // A function that sets the transparent state of the navbar.
-    function handleTransparentNavbar() {
-      setTransparentNavbar(dispatch, (fixedNavbar && window.scrollY === 0) || !fixedNavbar);
-    }
-
-    /** 
-     The event listener that's calling the handleTransparentNavbar function when 
-     scrolling the window.
-    */
-    window.addEventListener("scroll", handleTransparentNavbar);
-
-    // Call the handleTransparentNavbar function to set the state with the initial value.
-    handleTransparentNavbar();
-
-    // Remove event listener on cleanup
-    return () => window.removeEventListener("scroll", handleTransparentNavbar);
-  }, [dispatch, fixedNavbar]);
-
   return (
     <AppBar
-      position={absolute ? "absolute" : navbarType}
+      position={absolute ? "absolute" : "static"}
       color="inherit"
       elevation={0}
-      sx={{ zIndex: 1201, background: "#ffffff !important", borderBottom: "1px solid #d6d9de", boxShadow: "none !important" }}
+      sx={{
+        zIndex: 1201,
+        background: "#ffffff !important",
+        borderBottom: "1px solid #d6d9de",
+        boxShadow: "none !important",
+      }}
     >
-      <Toolbar
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          minHeight: 64,
-        }}
-      >
-        {/* Spacer to push user info to the right */}
+      <Toolbar sx={{ display: "flex", alignItems: "center", minHeight: 64 }}>
         <Box sx={{ flexGrow: 1 }} />
-        {/* Right: User Info */}
-        {user ? (
+        {user && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, height: 48 }}>
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-end",
-                justifyContent: "center",
-                height: "100%",
-              }}
+            <UserSummary email={user.email} textSx={{ color: "#0d1b2a", textAlign: "right" }} />
+            <IconButton
+              onClick={(event) => setAnchorEl(event.currentTarget)}
+              sx={{ p: 0, alignSelf: "center" }}
             >
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 500,
-                  color: "#0d1b2a",
-                  textAlign: "right",
-                  fontSize: 13,
-                  lineHeight: 1.2,
-                }}
-              >
-                {user.email}
-              </Typography>
-              <Box sx={{ mt: 0.5 }}>
-                <span
-                  style={{
-                    background: "#eaecef",
-                    color: "#0d1b2a",
-                    fontWeight: 600,
-                    fontSize: 10,
-                    borderRadius: 0,
-                    padding: "2px 8px",
-                    boxShadow: "none",
-                    letterSpacing: 1,
-                    textTransform: "uppercase",
-                    display: "inline-block",
-                    verticalAlign: "middle",
-                    border: "1px solid #d6d9de",
-                  }}
-                >
-                  Logged in
-                </span>
-              </Box>
-            </Box>
-            <IconButton onClick={handleAvatarClick} sx={{ p: 0, alignSelf: "center" }}>
               <Avatar
                 alt={user.name || user.email}
                 src={user.avatar || user.profile_image || undefined}
@@ -149,7 +102,14 @@ function DashboardNavbar({ absolute }) {
                 }}
               >
                 {!(user.avatar || user.profile_image) && (
-                  <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "0.04em" }}>
+                  <span
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: 700,
+                      fontSize: 14,
+                      letterSpacing: "0.04em",
+                    }}
+                  >
                     {(user.name || user.email || "U").charAt(0).toUpperCase()}
                   </span>
                 )}
@@ -158,65 +118,23 @@ function DashboardNavbar({ absolute }) {
             <Menu
               anchorEl={anchorEl}
               open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
+              onClose={closeMenu}
               anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
               transformOrigin={{ vertical: "top", horizontal: "right" }}
             >
               <Box sx={{ px: 2, py: 1, minWidth: 180 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Typography
-                    variant="body2"
-                    sx={{ fontWeight: 500, fontSize: 13, lineHeight: 1.2 }}
-                  >
-                    {user.email}
-                  </Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    <span
-                      style={{
-                        background: "#eaecef",
-                        color: "#0d1b2a",
-                        fontWeight: 600,
-                        fontSize: 10,
-                        borderRadius: 0,
-                        padding: "2px 8px",
-                        boxShadow: "none",
-                        letterSpacing: 1,
-                        textTransform: "uppercase",
-                        display: "inline-block",
-                        verticalAlign: "middle",
-                        border: "1px solid #d6d9de",
-                      }}
-                    >
-                      Logged in
-                    </span>
-                  </Box>
-                </Box>
+                <UserSummary email={user.email} />
               </Box>
               <Divider />
               <MenuItem onClick={handleLogout}>Logout</MenuItem>
             </Menu>
           </Box>
-        ) : null}
+        )}
       </Toolbar>
     </AppBar>
   );
 }
 
-// Setting default values for the props of DashboardNavbar
-DashboardNavbar.defaultProps = {
-  absolute: false,
-};
-
-// Typechecking props for the DashboardNavbar
-DashboardNavbar.propTypes = {
-  absolute: PropTypes.bool,
-};
+DashboardNavbar.propTypes = { absolute: PropTypes.bool };
 
 export default DashboardNavbar;

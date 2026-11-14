@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { getSnapTradeContext } from "services/snaptradeConnectionService";
 import { useAuthStore } from "../../stores/useAuthStore";
 import supabaseService from "../../services/supabaseService";
 import Dialog from "@mui/material/Dialog";
@@ -13,7 +14,33 @@ import CircularProgress from "@mui/material/CircularProgress";
 import CloseIcon from "@mui/icons-material/Close";
 import PropTypes from "prop-types";
 
-import axios from "axios";
+const redactSecret = (value) => {
+  if (!value || typeof value !== "string") return "[missing]";
+  if (value.length <= 6) return "[redacted]";
+  return `${value.slice(0, 3)}...${value.slice(-3)}`;
+};
+
+const safeStringify = (value) => {
+  try {
+    return JSON.stringify(value);
+  } catch (err) {
+    return `[unserializable: ${err?.message || "unknown"}]`;
+  }
+};
+
+// Small helper to surface a consistent, user-friendly error message
+const formatError = (err) => {
+  if (!err) return "An unexpected error occurred. Please try again later.";
+
+  if (err?.body) {
+    const code = err.body.code ? ` (${err.body.code})` : "";
+    const detail = err.body.error || err.body.message;
+    const status = err.status ? ` (${err.status})` : "";
+    return `SnapTrade request failed${status}${code}${detail ? `: ${detail}` : ""}`;
+  }
+
+  return err.message || "An unexpected error occurred. Please try again later.";
+};
 
 export default function SnapTradeConnectModal({
   open,
@@ -38,9 +65,7 @@ export default function SnapTradeConnectModal({
   const [showDebugLogs, setShowDebugLogs] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [fallbackTimerExpired, setFallbackTimerExpired] = useState(false);
-  const [snapTradeCompleted, setSnapTradeCompleted] = useState(false);
   const authHydrated = useAuthStore((state) => state.hasHydrated);
-  const setSnapTradeContext = useAuthStore((state) => state.setSnapTradeContext);
 
   // Manual upload template lives under /public/template.csv
   const templateUrl = "/template.csv";
@@ -52,21 +77,7 @@ export default function SnapTradeConnectModal({
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
-  const redactSecret = (value) => {
-    if (!value || typeof value !== "string") return "[missing]";
-    if (value.length <= 6) return "[redacted]";
-    return `${value.slice(0, 3)}...${value.slice(-3)}`;
-  };
-
-  const safeStringify = (value) => {
-    try {
-      return JSON.stringify(value);
-    } catch (err) {
-      return `[unserializable: ${err?.message || "unknown"}]`;
-    }
-  };
-
-  const addDebugLog = (level, message, data) => {
+  const addDebugLog = useCallback((level, message, data) => {
     const timestamp = new Date().toISOString();
     const payload = data === undefined ? "" : ` | data=${safeStringify(data)}`;
     const entry = `[${timestamp}] [${level}] ${message}${payload}`;
@@ -76,7 +87,7 @@ export default function SnapTradeConnectModal({
     } else if (level === "warn") {
       console.warn(entry);
     }
-  };
+  }, []);
 
   const handleCopyLogs = async () => {
     if (!debugLogs.length) return;
@@ -89,85 +100,6 @@ export default function SnapTradeConnectModal({
     }
   };
 
-  // Small helper to surface a consistent, user-friendly error message
-  const formatError = (err) => {
-    if (!err) return "An unexpected error occurred. Please try again later.";
-
-    if (err?.body) {
-      const code = err.body.code ? ` (${err.body.code})` : "";
-      const detail = err.body.error || err.body.message;
-      const status = err.status ? ` (${err.status})` : "";
-      return `SnapTrade request failed${status}${code}${detail ? `: ${detail}` : ""}`;
-    }
-
-    if (axios.isAxiosError?.(err)) {
-      const status = err.response?.status;
-      const detail = err.response?.data?.detail || err.response?.data?.message;
-      let message = `SnapTrade request failed${status ? ` (${status})` : ""}`;
-      if (detail) message += `: ${detail}`;
-      return message;
-    }
-
-    return err.message || "An unexpected error occurred. Please try again later.";
-  };
-
-  const createTransientUserId = () => {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  };
-
-  const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
-
-  const registerTransientSnapTradeUser = async (userId) => {
-    addDebugLog("info", "Registering transient SnapTrade user", { userId });
-
-    const regResult = await supabaseService.registerUser(userId);
-    const userSecret = regResult?.userSecret || null;
-
-    if (!isNonEmptyString(userSecret)) {
-      addDebugLog("error", "SnapTrade registration failed", { userSecret });
-      throw new Error("Failed to register with SnapTrade. Please try again later.");
-    }
-
-    addDebugLog("info", "Registered SnapTrade userSecret", {
-      userSecret: redactSecret(userSecret),
-    });
-
-    addDebugLog("info", "SnapTrade auth context ready", {
-      userId,
-      userSecret: redactSecret(userSecret),
-    });
-
-    setSnapTradeContext(userId, userSecret);
-    return { userId, userSecret };
-  };
-
-  const resolveSnapTradeContext = async () => {
-    const { snapTradeUserId, snapUserSecret } = useAuthStore.getState();
-    const hasStoredUserId = isNonEmptyString(snapTradeUserId);
-    const hasStoredUserSecret = isNonEmptyString(snapUserSecret);
-
-    if (hasStoredUserId && hasStoredUserSecret) {
-      addDebugLog("info", "Reusing stored SnapTrade auth context", {
-        userId: snapTradeUserId,
-        userSecret: redactSecret(snapUserSecret),
-      });
-      return {
-        userId: snapTradeUserId.trim(),
-        userSecret: snapUserSecret.trim(),
-      };
-    }
-
-    addDebugLog("info", "No complete SnapTrade auth context found; generating a new one", {
-      hasStoredUserId,
-      hasStoredUserSecret,
-    });
-
-    return registerTransientSnapTradeUser(createTransientUserId());
-  };
-
   useEffect(() => {
     if (!open) {
       setLoginLink(null);
@@ -178,10 +110,10 @@ export default function SnapTradeConnectModal({
       setShowDebugLogs(false);
       setIsConnecting(false);
       setFallbackTimerExpired(false);
-      setSnapTradeCompleted(false);
       return;
     }
 
+    let active = true;
     const handleKeydown = (event) => {
       const isCtrlD = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d";
       if (isCtrlD) {
@@ -215,7 +147,6 @@ export default function SnapTradeConnectModal({
       setSnapTradeReady(false);
       setDebugLogs([]);
       setCopyStatus("");
-      setSnapTradeCompleted(false);
       setIsConnecting(true);
 
       addDebugLog("info", "SnapTrade modal opened", {
@@ -234,7 +165,13 @@ export default function SnapTradeConnectModal({
       }
 
       try {
-        const resolvedContext = await resolveSnapTradeContext();
+        const resolvedContext = await getSnapTradeContext();
+        if (!active) return;
+
+        addDebugLog("info", "SnapTrade auth context ready", {
+          userId: resolvedContext.userId,
+          userSecret: redactSecret(resolvedContext.userSecret),
+        });
 
         // 5. Fetch login link via Supabase Edge Function to avoid CORS and keep secrets server-side.
         const frontendRedirectUri = `${window.location.origin}/snapTradeRedirect`;
@@ -252,6 +189,7 @@ export default function SnapTradeConnectModal({
             connectionPortalVersion: "v4",
           }
         );
+        if (!active) return;
         const redirectURI =
           loginResult?.redirectURI ||
           loginResult?.redirectUri ||
@@ -293,6 +231,7 @@ export default function SnapTradeConnectModal({
           linkLength: normalizedRedirectURI?.length || 0,
         });
       } catch (err) {
+        if (!active) return;
         // Catch-all error handler
         addDebugLog("error", "SnapTrade modal error", {
           message: err?.message,
@@ -310,10 +249,11 @@ export default function SnapTradeConnectModal({
     handleSnapTradeAuth();
 
     return () => {
+      active = false;
       window.removeEventListener("keydown", handleKeydown);
       clearTimeout(fallbackTimeout);
     };
-  }, [open, authHydrated, brokerSlug, brokerageName]);
+  }, [open, authHydrated, brokerSlug, brokerageName, addDebugLog]);
 
   useEffect(() => {
     if (!open || !loginLink) return;
@@ -341,7 +281,11 @@ export default function SnapTradeConnectModal({
     };
 
     const handleMessageEvent = (event) => {
-      if (event.origin && !isSnapTradeOrigin(event.origin) && event.origin !== window.location.origin) {
+      if (
+        event.origin &&
+        !isSnapTradeOrigin(event.origin) &&
+        event.origin !== window.location.origin
+      ) {
         return;
       }
 
@@ -351,7 +295,6 @@ export default function SnapTradeConnectModal({
       if (data.status === "SUCCESS") {
         const authorizationId = data.authorizationId || data.authorization_id;
         addDebugLog("info", "SnapTrade iframe success", { authorizationId });
-        setSnapTradeCompleted(true);
         if (onSuccess) onSuccess(authorizationId);
         window.location.assign("/snapTradeRedirect");
         return;
@@ -377,7 +320,11 @@ export default function SnapTradeConnectModal({
         return;
       }
 
-      if (data.status === "CLOSED" || data.status === "CLOSE_MODAL" || data.status === "ABANDONED") {
+      if (
+        data.status === "CLOSED" ||
+        data.status === "CLOSE_MODAL" ||
+        data.status === "ABANDONED"
+      ) {
         addDebugLog("info", "SnapTrade iframe closed", { status: data.status });
         if (onExit) onExit();
         if (onClose) onClose();
@@ -388,27 +335,39 @@ export default function SnapTradeConnectModal({
     return () => {
       window.removeEventListener("message", handleMessageEvent, false);
     };
-  }, [open, loginLink, onClose, onError, onExit, onSuccess]);
+  }, [open, loginLink, onClose, onError, onExit, onSuccess, addDebugLog]);
 
   // When SnapTrade isn't ready (or errors), we show the manual CSV upload path instead
   const showManualFallback = !snapTradeReady && (!isConnecting || fallbackTimerExpired);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
       PaperProps={{ sx: { borderRadius: 0, boxShadow: "0 4px 24px rgba(13,27,42,0.12)" } }}
     >
-      <DialogTitle sx={{
-        fontWeight: 700,
-        fontSize: 18,
-        color: "#0d1b2a",
-        borderBottom: "1px solid #d6d9de",
-        pb: 1.5,
-      }}>
+      <DialogTitle
+        sx={{
+          fontWeight: 700,
+          fontSize: 18,
+          color: "#0d1b2a",
+          borderBottom: "1px solid #d6d9de",
+          pb: 1.5,
+        }}
+      >
         Connect to {brokerageName}
         <IconButton
           aria-label="close"
           onClick={onClose}
-          sx={{ position: "absolute", right: 12, top: 10, color: "#9CA3AF", "&:hover": { color: "#0d1b2a", background: "none" } }}
+          sx={{
+            position: "absolute",
+            right: 12,
+            top: 10,
+            color: "#9CA3AF",
+            "&:hover": { color: "#0d1b2a", background: "none" },
+          }}
         >
           <CloseIcon sx={{ fontSize: 18 }} />
         </IconButton>
@@ -424,7 +383,9 @@ export default function SnapTradeConnectModal({
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
             <CircularProgress size={18} sx={{ color: "#0d1b2a" }} />
             <Typography sx={{ fontSize: 13.5, color: "#4B5563" }}>
-              {authHydrated ? `Connecting to ${brokerageName}...` : "Loading secure connection context..."}
+              {authHydrated
+                ? `Connecting to ${brokerageName}...`
+                : "Loading secure connection context..."}
             </Typography>
           </Box>
         )}
@@ -475,8 +436,8 @@ export default function SnapTradeConnectModal({
                 .
               </Typography>
               <Typography sx={{ fontSize: 13.5, color: "#4B5563", lineHeight: 1.7, mb: 2 }}>
-                <strong>CSV structure:</strong> Account row, blank row, header row (Symbol, Market, Quantity),
-                then holdings rows.
+                <strong>CSV structure:</strong> Account row, blank row, header row (Symbol, Market,
+                Quantity), then holdings rows.
               </Typography>
               <Button
                 variant="outlined"
@@ -490,7 +451,11 @@ export default function SnapTradeConnectModal({
                   textTransform: "uppercase",
                   letterSpacing: 1.1,
                   boxShadow: "none",
-                  "&:hover": { backgroundColor: "#F9FAFB", borderColor: "#0d1b2a", boxShadow: "none" },
+                  "&:hover": {
+                    backgroundColor: "#F9FAFB",
+                    borderColor: "#0d1b2a",
+                    boxShadow: "none",
+                  },
                   minWidth: 160,
                 }}
               >
@@ -526,27 +491,33 @@ export default function SnapTradeConnectModal({
                 size="small"
                 onClick={handleCopyLogs}
                 disabled={!debugLogs.length}
-                sx={{ borderRadius: 0, borderColor: "#d6d9de", color: "#4B5563", textTransform: "none", fontSize: 12 }}
+                sx={{
+                  borderRadius: 0,
+                  borderColor: "#d6d9de",
+                  color: "#4B5563",
+                  textTransform: "none",
+                  fontSize: 12,
+                }}
               >
                 Copy logs
               </Button>
               {copyStatus && (
-                <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>
-                  {copyStatus}
-                </Typography>
+                <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>{copyStatus}</Typography>
               )}
             </Box>
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{
-        display: "flex",
-        justifyContent: "flex-end",
-        gap: 1.5,
-        px: 3,
-        py: 2,
-        borderTop: "1px solid #d6d9de",
-      }}>
+      <DialogActions
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 1.5,
+          px: 3,
+          py: 2,
+          borderTop: "1px solid #d6d9de",
+        }}
+      >
         <Button
           onClick={onClose}
           sx={{

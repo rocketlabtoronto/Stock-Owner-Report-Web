@@ -1,20 +1,15 @@
-// prop-types is a library for typechecking of props
-import PropTypes from "prop-types";
-
-// @mui material components
 import Link from "@mui/material/Link";
-
-// Custom Dashboard 2 MUI components
 import CustomBox from "components/CustomBox";
 import CustomTypography from "components/CustomTypography";
 
-// Custom Dashboard 2 MUI base styles
-import typography from "assets/theme/base/typography";
+const textStyle = { lineHeight: 1, fontSize: 12, color: "#6b7280" };
+const links = [
+  { name: "Privacy", href: "/privacy" },
+  { name: "Terms", href: "/terms" },
+  { name: "Our Principles", href: "/our-principles" },
+];
 
-function Footer({ company = { href: "#", name: "Company" }, links = [] }) {
-  const { href, name } = company;
-  const { size } = typography;
-
+export default function Footer() {
   return (
     <CustomBox
       width="100%"
@@ -26,50 +21,22 @@ function Footer({ company = { href: "#", name: "Company" }, links = [] }) {
       flexWrap="wrap"
       gap={1}
     >
-      <CustomTypography variant="button" fontWeight="regular" color="secondary" sx={{ lineHeight: 1, fontSize: 12, color: "#6b7280" }}>
-        © {new Date().getFullYear()} LookThroughProfits, Inc. | 169 Madison Ave STE 38180, New York,
+      <CustomTypography variant="button" fontWeight="regular" color="secondary" sx={textStyle}>
+        &copy; {new Date().getFullYear()} LookThroughProfits, Inc. | 169 Madison Ave STE 38180, New York,
         NY 10016 | howard@stockownerreport.com
       </CustomTypography>
-
-      {[
-        { name: "Privacy", href: "/privacy" },
-        { name: "Terms", href: "/terms" },
-        { name: "Our Principles", href: "/our-principles" },
-      ].map((link) => (
+      {links.map(({ name, href }) => (
         <Link
-          key={link.name}
-          href={link.href}
+          key={name}
+          href={href}
           rel="noreferrer"
-          sx={{
-            ml: 2,
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-          }}
+          sx={{ ml: 2, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
         >
-          <CustomTypography
-            variant="button"
-            fontWeight="regular"
-            color="secondary"
-            sx={{ lineHeight: 1, fontSize: 12, color: "#6b7280" }}
-          >
-            {link.name}
+          <CustomTypography variant="button" fontWeight="regular" color="secondary" sx={textStyle}>
+            {name}
           </CustomTypography>
         </Link>
       ))}
     </CustomBox>
   );
 }
-
-// Setting default values for the props of Footer
-Footer.defaultProps = {
-  company: { href: "https://lookthroughprofits.com/", name: "LookThroughProfits" },
-};
-
-// Typechecking props for the Footer
-Footer.propTypes = {
-  company: PropTypes.objectOf(PropTypes.string),
-  links: PropTypes.arrayOf(PropTypes.object),
-};
-
-export default Footer;

@@ -1,6 +1,5 @@
 import React from "react";
 import PropTypes from "prop-types";
-import { useTheme } from "@mui/material/styles";
 
 const baseWrapperStyle = {
   display: "flex",
@@ -45,10 +44,6 @@ export default function AuthPageLayout({
   logoPosition,
   showLogo,
 }) {
-  const theme = useTheme();
-  const themedWrapperStyle = {};
-  const themedCardStyle = {};
-
   const logo = showLogo ? (
     <div style={{ marginBottom: 24, textAlign: "center" }}>
       <img

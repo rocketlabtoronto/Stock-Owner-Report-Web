@@ -13,10 +13,8 @@ import CustomTypography from "components/CustomTypography";
 
 // Billing page components
 import BillingInformation from "layouts/billing/components/BillingInformation";
-import { useAppStore } from "../../stores/store";
 
 function Billing() {
-  const userSession = useAppStore((state) => state.session);
   return (
     <DashboardLayout>
       <DashboardNavbar />
@@ -49,9 +47,7 @@ function Billing() {
             >
               Billing
             </CustomTypography>
-            <BillingInformation
-              userSession={userSession}
-            />
+            <BillingInformation />
           </Card>
         </CustomBox>
       </CustomBox>

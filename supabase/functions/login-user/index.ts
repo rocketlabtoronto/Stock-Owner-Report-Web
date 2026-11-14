@@ -1,27 +1,12 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 import { createStructuredLogger } from "../_shared/logging.ts";
+import { createJsonResponder, parseBody, snaptradeCorsHeaders } from "../_shared/http.ts";
 
 // Business purpose: generate a SnapTrade portal link from browser-supplied credentials only.
 // This function intentionally does not look up fallback credentials in the database.
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, content-profile, accept-profile",
-  "Content-Type": "application/json",
-};
-
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: corsHeaders });
-
-const parseBody = async (req: Request) => {
-  try {
-    return await req.json();
-  } catch {
-    return null;
-  }
-};
+const corsHeaders = snaptradeCorsHeaders;
+const json = createJsonResponder(corsHeaders);
 
 const normalizeLink = (link: string | undefined, redirectURI: string) => {
   if (!link) return link;
@@ -58,15 +43,13 @@ serve(async (req: Request) => {
     return json(500, { error: "Missing server configuration" });
   }
 
-  const body = (await parseBody(req)) as
-    | {
-        userId?: string;
-        userSecret?: string;
-        redirectURI?: string;
-        connectionPortalVersion?: string;
-        broker?: string;
-      }
-    | null;
+  const body = (await parseBody(req)) as {
+    userId?: string;
+    userSecret?: string;
+    redirectURI?: string;
+    connectionPortalVersion?: string;
+    broker?: string;
+  } | null;
 
   if (!body) {
     return json(400, { error: "Invalid request body" });

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -6,34 +6,20 @@ import Box from "@mui/material/Box";
 import Sidenav from "ui/Sidenav";
 import Footer from "ui/Footer";
 import theme from "assets/theme";
-import themeDark from "assets/theme-dark";
 import routes from "routes";
 import { useCustomController } from "context";
-import brand from "assets/images/logo-ct.png";
-import brandDark from "assets/images/logo-ct-dark.png";
 
 export default function App() {
   const [controller] = useCustomController();
-  const { layout, sidenavColor, darkSidenav, darkMode, miniSidenav } = controller;
+  const { miniSidenav } = controller;
   const { pathname } = useLocation();
   useEffect(() => {
     document.documentElement.scrollTop = 0;
     document.scrollingElement.scrollTop = 0;
   }, [pathname]);
 
-  const getRoutes = (allRoutes) =>
-    allRoutes.map((route) => {
-      if (route.collapse) {
-        return getRoutes(route.collapse);
-      }
-      if (route.route) {
-        return <Route exact path={route.route} element={route.component} key={route.key} />;
-      }
-      return null;
-    });
-
   return (
-    <ThemeProvider theme={darkMode ? themeDark : theme}>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box
         sx={{
@@ -43,14 +29,7 @@ export default function App() {
           flexDirection: "column",
         }}
       >
-        {layout === "dashboard" && (
-          <Sidenav
-            color={sidenavColor}
-            brand={darkSidenav || darkMode ? brand : brandDark}
-            brandName="The Stock Owner's Report"
-            routes={routes}
-          />
-        )}
+        <Sidenav routes={routes} />
         <Box
           sx={{
             flex: 1,
@@ -58,10 +37,20 @@ export default function App() {
             flexDirection: "column",
           }}
         >
-          <Routes>
-            {getRoutes(routes)}
-            <Route path="*" element={<Navigate to="/brokeragesAndAccounts" />} />
-          </Routes>
+          <Suspense
+            fallback={
+              <Box role="status" p={3}>
+                Loading...
+              </Box>
+            }
+          >
+            <Routes>
+              {routes.map((route) => (
+                <Route path={route.route} element={route.component} key={route.key} />
+              ))}
+              <Route path="*" element={<Navigate to="/brokeragesAndAccounts" />} />
+            </Routes>
+          </Suspense>
         </Box>
         <Box
           sx={({ breakpoints, functions: { pxToRem } }) => ({
@@ -71,7 +60,7 @@ export default function App() {
             px: 3,
             mt: "auto",
             [breakpoints.up("xl")]: {
-              marginLeft: layout === "dashboard" ? (miniSidenav ? pxToRem(120) : pxToRem(274)) : 0,
+              marginLeft: miniSidenav ? pxToRem(120) : pxToRem(274),
               transition: "margin-left 0.3s ease",
             },
           })}

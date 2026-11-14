@@ -1,14 +1,11 @@
 /* eslint-disable no-nested-ternary */
 
 function item(theme, ownerState) {
-  const { palette, transitions, breakpoints, boxShadows, borders, functions } = theme;
-  const { active, darkSidenav, sidenavColor, miniSidenav } = ownerState;
+  const { palette, transitions, breakpoints, functions } = theme;
+  const { active, miniSidenav } = ownerState;
 
-  const { dark, transparent, white } = palette;
-  const { xxl } = boxShadows;
-  const { borderRadius } = borders;
-  const { pxToRem, rgba } = functions;
-  const accentColor = palette[sidenavColor ?? "info"].main;
+  const { dark, transparent } = palette;
+  const { pxToRem } = functions;
 
   return {
     background: active ? "#f0f2f5" : transparent.main,
@@ -43,12 +40,10 @@ function item(theme, ownerState) {
 }
 
 function itemIconBox(theme, ownerState) {
-  const { transitions, borders, functions, palette } = theme;
-  const { darkSidenav, sidenavColor, active } = ownerState;
+  const { transitions, functions } = theme;
+  const { active } = ownerState;
 
-  const { borderRadius } = borders;
-  const { pxToRem, rgba } = functions;
-  const accentColor = palette[sidenavColor ?? "info"].main;
+  const { pxToRem } = functions;
 
   return {
     color: active ? "#0d1b2a" : "#6b7280",
@@ -85,7 +80,7 @@ function itemText(theme, ownerState) {
   const { typography, transitions, breakpoints, functions } = theme;
   const { miniSidenav, active } = ownerState;
 
-  const { size, fontWeightMedium, fontWeightRegular } = typography;
+  const { fontWeightMedium } = typography;
   const { pxToRem } = functions;
 
   return {

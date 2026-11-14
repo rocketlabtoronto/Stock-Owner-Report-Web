@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import ConsentModal from "./ConsentModal";
 import { brokerages, isIntegrationAvailable } from "./brokerageData";
 import ManualUploadInstructionsModal from "./ManualUploadInstructionsModal";
 import SnapTradeConnectModal from "./SnapTradeConnectModal";
@@ -18,7 +17,6 @@ import { inferBankFromName } from "services/snaptradeMappingService";
 export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [country, setCountry] = useState("Canada");
-  const [consentOpen, setConsentOpen] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualBrokerage, setManualBrokerage] = useState("");
   const [snapTradeModalOpen, setSnapTradeModalOpen] = useState(false);
@@ -29,7 +27,8 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
 
   // Read global flag to disable SnapTrade integrations
   // CRA exposes only REACT_APP_* env vars to the client.
-  const isSnapTradeDisabled = String(process.env.REACT_APP_DISABLE_SNAPTRADE).toLowerCase() === "true";
+  const isSnapTradeDisabled =
+    String(process.env.REACT_APP_DISABLE_SNAPTRADE).toLowerCase() === "true";
 
   // For manual upload modal, handle file selection
   const handleManualFileChange = (event) => {
@@ -44,7 +43,6 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
     const [namePart] = accountRaw.split(" - ");
     const brokerageName = (namePart || "").trim();
     const bank = inferBankFromName(brokerageName);
-    const accountId = accountRaw; // use full string as ID; can refine if needed
 
     const holdings = result.secondTable || [];
 
@@ -64,21 +62,6 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
     setManualModalOpen(false);
     setSnapTradeModalOpen(false);
     setSelectedFile(null);
-    onClose();
-  };
-
-  // For SnapTrade flow file selection
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    setSelectedFile(file);
-    parseBrokerageCsv(file, (result) => {
-      storeParsed(result);
-    });
-  };
-
-  const handleConsent = () => {
-    setConsentOpen(false);
     onClose();
   };
 
@@ -122,16 +105,22 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
+      <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="sm"
         PaperProps={{ sx: { borderRadius: 0, boxShadow: "0 4px 24px rgba(13,27,42,0.12)" } }}
       >
-        <DialogTitle sx={{
-          fontWeight: 700,
-          fontSize: 18,
-          color: "#0d1b2a",
-          borderBottom: "1px solid #d6d9de",
-          pb: 1.5,
-        }}>
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: 18,
+            color: "#0d1b2a",
+            borderBottom: "1px solid #d6d9de",
+            pb: 1.5,
+          }}
+        >
           Connect a Brokerage
           <IconButton
             aria-label="close"
@@ -186,11 +175,7 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
             }}
           >
             {brokerages[country].map((broker) => {
-              const allowlistEntry = SNAPTRADE_BROKER_ALLOWLIST.find(
-                (entry) => entry.label.toLowerCase() === String(broker.name || "").toLowerCase()
-              );
-              const resolvedSlug = allowlistEntry?.enabled === false ? null : allowlistEntry?.broker;
-              const requiresManual =broker.integration === isIntegrationAvailable.notAvailable;
+              const requiresManual = broker.integration === isIntegrationAvailable.notAvailable;
               return (
                 <div
                   key={broker.name}
@@ -229,25 +214,15 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
                     alt={broker.name}
                     style={{ width: 90, height: 72, objectFit: "contain", marginBottom: 6 }}
                   />
-                  <span style={{ fontSize: 11, textAlign: "center", color: "#4B5563", fontWeight: 500 }}>
+                  <span
+                    style={{ fontSize: 11, textAlign: "center", color: "#4B5563", fontWeight: 500 }}
+                  >
                     {broker.name}
                   </span>
                 </div>
               );
             })}
           </div>
-          {/* Only show file input for SnapTrade brokerages (if needed) */}
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileChange}
-            style={{ display: "none" }}
-          />
-          {selectedFile && (
-            <Typography sx={{ fontSize: 12.5, color: "#4B5563", mt: 1 }}>
-              Selected file: {selectedFile.name}
-            </Typography>
-          )}
         </DialogContent>
         {/* No Cancel or Upload buttons needed here anymore */}
       </Dialog>
@@ -265,7 +240,6 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
         onUpload={handleManualUpload}
         selectedFile={selectedFile}
       />
-      <ConsentModal open={consentOpen} onConsent={handleConsent} />
       <ManualUploadInstructionsModal
         open={manualModalOpen}
         onClose={() => setManualModalOpen(false)}

@@ -19,6 +19,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "npm:stripe";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createStructuredLogger } from "../_shared/logging.ts";
+import {
+  extractResetUrl,
+  isHttpUrl,
+  requestPasswordLink,
+  sendPostmarkEmail,
+} from "../_shared/password-links.ts";
 
 // -------------------- Config (set as Supabase Edge Function Secrets) --------------------
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
@@ -28,74 +34,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const SUPABASE_DB_SCHEMA = Deno.env.get("SUPABASE_DB_SCHEMA") ?? "public";
 const POSTMARK_TOKEN = Deno.env.get("POSTMARK_SERVER_TOKEN") ?? "";
 const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-03-25.dahlia" });
-const APP_BASE_URL = Deno.env.get("APP_BASE_URL").replace(/\/$/, "");
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL");
-// If you call this from the browser, CORS is required.
-const ALLOWED_ORIGINS = new Set(APP_BASE_URL ? [APP_BASE_URL] : []);
-
-function buildCorsHeaders(req: Request): HeadersInit {
-  const origin = req.headers.get("origin") ?? "";
-  const isAllowed = origin && ALLOWED_ORIGINS.has(origin);
-
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
-    "Access-Control-Max-Age": "86400",
-    Vary: "Origin",
-  };
-
-  if (isAllowed) headers["Access-Control-Allow-Origin"] = origin;
-  return headers;
-}
-
-function json(req: Request, status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" },
-  });
-}
-
-// The internal function may return JSON { tokenizedUrl: "..." } or plain text "..."
-function extractResetUrl(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw);
-
-    // Support the actual response shape you're getting:
-    const candidate =
-      parsed?.tokenizedUrl ??
-      parsed?.resetUrl ??
-      parsed?.url;
-
-    if (candidate) return String(candidate).trim();
-
-    // It was JSON, but not the expected shape
-    return "";
-  } catch {
-    // Not JSON (plain text URL)
-    return raw.trim();
-  }
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const u = new URL(value);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-
-
-
-// -------------------- Small utilities --------------------
-function safeJson(v: unknown) {
-  try {
-    return JSON.stringify(v);
-  } catch {
-    return "[unstringifiable]";
-  }
-}
 
 /**
  * Stripe line item descriptions include words like "Monthly", and sometimes "(... / month)".
@@ -125,63 +64,47 @@ function deriveIntervalFromDescription(description: unknown): string {
 async function sendActivationEmail(
   logger: ReturnType<typeof createStructuredLogger>,
   to: string,
-  interval: string,
+  interval: string
 ) {
-  
-    const adminHeaders: HeadersInit = {
-      "Content-Type": "application/json",
-      apikey: SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-    };
-
-    const linkResp = await fetch(
-    `${SUPABASE_URL}/functions/v1/create-and-get-tokenized-url`,
-    {
-        method: "POST",
-        headers: adminHeaders,
-        body: JSON.stringify({ email: to })
-    },
-    ).catch((e) => {
-      logger.error("S20", "Token link generation call failed due to network/runtime issue", {
-        message: String(e?.message ?? e),
-      });
-      throw e; // jump to catch so we get one consistent failure path
+  const linkResp = await requestPasswordLink(SUPABASE_URL, SERVICE_ROLE_KEY, to).catch((e) => {
+    logger.error("S20", "Token link generation call failed due to network/runtime issue", {
+      message: String(e?.message ?? e),
     });
+    throw e; // jump to catch so we get one consistent failure path
+  });
 
-    logger.info("S21", "Token link service responded", {
+  logger.info("S21", "Token link service responded", {
+    status: linkResp.status,
+    ok: linkResp.ok,
+  });
+
+  const linkText = await linkResp.text().catch((e) => {
+    logger.error("S22", "Failed reading token link service response body", {
+      message: String(e?.message ?? e),
+    });
+    throw e;
+  });
+
+  if (!linkResp.ok) {
+    logger.error("S23", "Token link service returned failure status", {
       status: linkResp.status,
-      ok: linkResp.ok,
+      bodyPreview: linkText.slice(0, 300),
     });
+  }
 
-    const linkText = await linkResp.text().catch((e) => {
-      logger.error("S22", "Failed reading token link service response body", {
-        message: String(e?.message ?? e),
-      });
-      throw e;
+  // Step 6: Parse and validate reset URL
+  logger.info("S24", "Parse activation URL returned by token link service", { to });
+  const activationUrl = extractResetUrl(linkText);
+
+  if (!activationUrl || !isHttpUrl(activationUrl)) {
+    logger.error("S25", "Activation URL from token link service is invalid", {
+      responseLength: linkText.length,
     });
+  }
 
-    if (!linkResp.ok) {
-      logger.error("S23", "Token link service returned failure status", {
-        status: linkResp.status,
-        bodyPreview: linkText.slice(0, 300),
-      });
-    }
-
-    // Step 6: Parse and validate reset URL
-    logger.info("S24", "Parse activation URL returned by token link service", { to });
-    const activationUrl = extractResetUrl(linkText);
-
-    if (!activationUrl || !isHttpUrl(activationUrl)) {
-      logger.error("S25", "Activation URL from token link service is invalid", {
-        activationUrl,
-        bodyPreview: linkText.slice(0, 300),
-      });
-    }
-
-    logger.info("S26", "Activation URL extracted for subscription onboarding email", {
-      to,
-      activationUrl,
-    });
+  logger.info("S26", "Activation URL extracted for subscription onboarding email", {
+    to,
+  });
 
   // Append mode=activation so the set-password page can distinguish a first-time
   // account activation from a subsequent password reset. The set-password page reads
@@ -200,10 +123,11 @@ async function sendActivationEmail(
   }
   logger.info("S27", "Activation URL annotated with onboarding mode parameter", {
     to,
-    activationUrlWithMode,
   });
 
-  const safeInterval = (typeof interval === "string" && interval.trim() ? interval.trim() : "selected").toLowerCase();
+  const safeInterval = (
+    typeof interval === "string" && interval.trim() ? interval.trim() : "selected"
+  ).toLowerCase();
   const subject = "Activate your subscription — The Stock Owner Report";
 
   const html = `<!DOCTYPE html>
@@ -239,33 +163,22 @@ async function sendActivationEmail(
 </html>`;
 
   try {
+    if (!to || !subject || !html) {
+      return new Response("Missing to/subject/html", { status: 400 });
+    }
 
-  if (!to || !subject || !html) {
-    return new Response("Missing to/subject/html", { status: 400 });
-  }
-
-  const res = await fetch("https://api.postmarkapp.com/email", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-Postmark-Server-Token": POSTMARK_TOKEN,
-    },
-    body: JSON.stringify({
+    const res = await sendPostmarkEmail(POSTMARK_TOKEN, {
       From: FROM_EMAIL,
       To: to,
       Subject: subject,
       HtmlBody: html,
-      MessageStream: "outbound",
-    }),
-  });
+    });
 
-  const text = await res.text();
-  return new Response(text, {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
-  });
-
+    const text = await res.text();
+    return new Response(text, {
+      status: res.status,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error("S28", "Activation email delivery failed in Postmark call", {
@@ -277,15 +190,16 @@ async function sendActivationEmail(
 }
 
 // -------------------- Main webhook handler (business logic) --------------------
-async function processStripeEvent(
-  logger: ReturnType<typeof createStructuredLogger>,
-  event: any,
-) {
+async function processStripeEvent(logger: ReturnType<typeof createStructuredLogger>, event: any) {
   // Only act on successful invoice payments
   if (event?.type !== "invoice.payment_succeeded") {
-    logger.info("S10", "Ignore non-payment Stripe event because it does not change subscriber access", {
-      eventType: event?.type,
-    });
+    logger.info(
+      "S10",
+      "Ignore non-payment Stripe event because it does not change subscriber access",
+      {
+        eventType: event?.type,
+      }
+    );
     return;
   }
 
@@ -354,7 +268,7 @@ async function processStripeEvent(
 
     logger.info("S15", "Users table upsert succeeded after successful payment", {
       email,
-      userRow: safeJson(data),
+      userId: data?.id,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -407,10 +321,14 @@ serve(async (req: Request) => {
   try {
     // Verify the signature so we only process real Stripe events
     const event = await stripe.webhooks.constructEventAsync(body, sig, STRIPE_WEBHOOK_SECRET);
-    logger.info("S2", "Stripe webhook signature verified; proceeding with business event processing", {
-      eventType: event?.type,
-      eventId: event?.id,
-    });
+    logger.info(
+      "S2",
+      "Stripe webhook signature verified; proceeding with business event processing",
+      {
+        eventType: event?.type,
+        eventId: event?.id,
+      }
+    );
 
     await processStripeEvent(logger, event);
 

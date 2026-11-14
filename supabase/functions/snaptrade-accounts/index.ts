@@ -3,6 +3,11 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 import { createStructuredLogger } from "../_shared/logging.ts";
+import { createJsonResponder, snaptradeCorsHeaders as corsHeaders } from "../_shared/http.ts";
+import { withRetry } from "../_shared/retry.ts";
+
+const json = createJsonResponder(corsHeaders);
+const retryOn = [425, 429, 500, 502, 503, 504];
 
 serve(async (req: Request) => {
   const logger = createStructuredLogger("snaptrade-accounts");
@@ -14,13 +19,6 @@ serve(async (req: Request) => {
   // Server configuration is required for SnapTrade API access.
   const SNAPTRADE_CLIENT_ID = Deno.env.get("SNAPTRADE_CLIENT_ID");
   const SNAPTRADE_CONSUMER_KEY = Deno.env.get("SNAPTRADE_CONSUMER_KEY");
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, content-profile, accept-profile",
-    "Content-Type": "application/json",
-  };
 
   if (req.method === "OPTIONS") {
     logger.info("S4", "Handle preflight request without querying SnapTrade");
@@ -37,13 +35,7 @@ serve(async (req: Request) => {
     logger.warn("S5", "Reject request because payload JSON is invalid", {
       expectedFields: ["userId", "userSecret"],
     });
-    return new Response(
-      JSON.stringify({ error: "Missing or invalid userId/userSecret in request body" }),
-      {
-        status: 400,
-        headers: corsHeaders,
-      }
-    );
+    return json(400, { error: "Missing or invalid userId/userSecret in request body" });
   }
 
   if (!userId || !userSecret) {
@@ -51,10 +43,7 @@ serve(async (req: Request) => {
       hasUserId: Boolean(userId),
       hasUserSecret: Boolean(userSecret),
     });
-    return new Response(JSON.stringify({ error: "Missing userId or userSecret in request body" }), {
-      status: 400,
-      headers: corsHeaders,
-    });
+    return json(400, { error: "Missing userId or userSecret in request body" });
   }
 
   if (!SNAPTRADE_CLIENT_ID || !SNAPTRADE_CONSUMER_KEY) {
@@ -62,10 +51,7 @@ serve(async (req: Request) => {
       hasSnaptradeClientId: !!SNAPTRADE_CLIENT_ID,
       hasSnaptradeConsumerKey: !!SNAPTRADE_CONSUMER_KEY,
     });
-    return new Response(
-      JSON.stringify({ error: "Missing server configuration" }),
-      { status: 500, headers: corsHeaders }
-    );
+    return json(500, { error: "Missing server configuration" });
   }
 
   // === Initialize SnapTrade SDK ===
@@ -73,48 +59,6 @@ serve(async (req: Request) => {
     clientId: SNAPTRADE_CLIENT_ID,
     consumerKey: SNAPTRADE_CONSUMER_KEY,
   });
-
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const getErrorStatus = (err: unknown): number | undefined => {
-    const anyErr = err as any;
-    return (
-      anyErr?.response?.status ??
-      anyErr?.response?.statusCode ??
-      anyErr?.status ??
-      anyErr?.statusCode
-    );
-  };
-
-  const withRetry = async <T>(
-    label: string,
-    fn: () => Promise<T>,
-    opts: { retries: number; baseDelayMs: number; retryOn: number[] }
-  ): Promise<T> => {
-    let attempt = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        return await fn();
-      } catch (err) {
-        const status = getErrorStatus(err);
-        const shouldRetry = status != null && opts.retryOn.includes(status);
-        if (!shouldRetry || attempt >= opts.retries) {
-          throw err;
-        }
-
-        const delay = opts.baseDelayMs * Math.pow(2, attempt);
-          logger.warn("S8", "Retry SnapTrade call after transient upstream error", {
-            label,
-            attempt: attempt + 1,
-            delayMs: delay,
-            status,
-          });
-        await sleep(delay);
-        attempt += 1;
-      }
-    }
-  };
 
   try {
     // === Step 1: Get all accounts for the user ===
@@ -146,80 +90,51 @@ serve(async (req: Request) => {
     });
     const accountsWithData = [];
     for (const account of accounts) {
-        const fetchHoldings = async () => {
-          try {
-            const holdingsRes = await withRetry(
-              `holdings:${account.id}`,
-              () =>
-                snaptrade.accountInformation.getUserHoldings({
-                  userId,
-                  userSecret,
-                  accountId: account.id,
-                }),
-              { retries: 6, baseDelayMs: 1000, retryOn: [425, 429, 500, 502, 503, 504] }
-            );
-            return holdingsRes.data;
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            logger.error("S13", "Failed to fetch holdings for account", {
+      const fetchData = async (kind: "holdings" | "details") => {
+        const holdings = kind === "holdings";
+        const credentials = { userId, userSecret, accountId: account.id };
+        try {
+          const response = await withRetry<{ data: unknown }>(
+            () =>
+              holdings
+                ? snaptrade.accountInformation.getUserHoldings(credentials)
+                : snaptrade.accountInformation.getUserAccountDetails(credentials),
+            { retries: holdings ? 6 : 4, baseDelayMs: holdings ? 1000 : 800, retryOn },
+            (retry) =>
+              logger.warn("S8", "Retry SnapTrade call after transient upstream error", {
+                label: `${kind}:${account.id}`,
+                ...retry,
+              })
+          );
+          return response.data;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logger.error(
+            holdings ? "S13" : "S14",
+            holdings ? "Failed to fetch holdings for account" : "Failed to fetch account details",
+            {
               userId,
               accountId: account.id,
               accountName: account.name,
               message,
-            });
-            return null;
-          }
-        };
+            }
+          );
+          return null;
+        }
+      };
 
-        const fetchDetails = async () => {
-          try {
-            const detailsRes = await withRetry(
-              `details:${account.id}`,
-              () =>
-                snaptrade.accountInformation.getUserAccountDetails({
-                  userId,
-                  userSecret,
-                  accountId: account.id,
-                }),
-              { retries: 4, baseDelayMs: 800, retryOn: [425, 429, 500, 502, 503, 504] }
-            );
-            return detailsRes.data;
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            logger.error("S14", "Failed to fetch account details", {
-              userId,
-              accountId: account.id,
-              accountName: account.name,
-              message,
-            });
-            return null;
-          }
-        };
-
-        // Keep per-account parallel fetch, but process accounts one-by-one.
-        const [holdingsData, detailsData] = await Promise.all([
-          fetchHoldings(),
-          fetchDetails(),
-        ]);
-        /*
-         * Purpose: Build a unified data object for each SnapTrade account.
-         *
-         * - id: Unique identifier for the account (used for further API calls)
-         * - name: Human-readable account name (e.g., "My Brokerage Account")
-         * - type: Account type (e.g., "CASH", "MARGIN", etc.)
-         * - details: All metadata/details about the account (from getUserAccountDetails)
-         * - holdings: Array of all holdings/assets in the account (from getUserHoldings)
-         *
-         * This structure makes it easy for the frontend to display all relevant account info
-         * and holdings in a single, organized object per account.
-         */
-        accountsWithData.push({
-          id: account.id,
-          name: account.name,
-          type: account.type,
-          details: detailsData,
-          holdings: holdingsData,
-        });
+      // Keep per-account parallel fetch, but process accounts one-by-one.
+      const [holdingsData, detailsData] = await Promise.all([
+        fetchData("holdings"),
+        fetchData("details"),
+      ]);
+      accountsWithData.push({
+        id: account.id,
+        name: account.name,
+        type: account.type,
+        details: detailsData,
+        holdings: holdingsData,
+      });
     }
 
     // === Step 3: Return the combined data model ===
@@ -227,10 +142,7 @@ serve(async (req: Request) => {
       userId,
       accountsReturned: accountsWithData.length,
     });
-    return new Response(JSON.stringify({ accounts: accountsWithData }), {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return json(200, { accounts: accountsWithData });
   } catch (err) {
     // === Error Handling ===
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -238,9 +150,6 @@ serve(async (req: Request) => {
       message: errorMessage,
       userId,
     });
-    return new Response(
-      JSON.stringify({ error: errorMessage || "Failed to fetch SnapTrade account data" }),
-      { status: 500, headers: corsHeaders }
-    );
+    return json(500, { error: errorMessage || "Failed to fetch SnapTrade account data" });
   }
 });

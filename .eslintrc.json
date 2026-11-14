@@ -3,7 +3,7 @@
     "browser": true,
     "es2021": true
   },
-  "extends": ["plugin:react/recommended", "prettier"],
+  "extends": ["react-app", "react-app/jest", "plugin:react/recommended", "prettier"],
   "parserOptions": {
     "ecmaFeatures": {
       "jsx": true
@@ -11,20 +11,30 @@
     "ecmaVersion": 12,
     "sourceType": "module"
   },
-  "plugins": ["react", "react-hooks", "import", "prettier"],
+  "plugins": ["react", "react-hooks", "import", "prettier", "unused-imports"],
   "rules": {
-    "react/jsx-filename-extension": [1, { "extensions": [".js", ".jsx"] }],
+    "react/jsx-filename-extension": [
+      1,
+      {
+        "extensions": [".js", ".jsx"]
+      }
+    ],
     "react/require-default-props": "off",
     "no-param-reassign": "off",
     "jsx-a11y/alt-text": "off",
     "react/react-in-jsx-scope": "off",
-    "react/display-name": "off"
+    "react/display-name": "off",
+    "unused-imports/no-unused-imports": "error"
   },
   "settings": {
     "react": {
       "version": "detect"
     },
-    "import/resolver": { "node": { "moduleDirectory": ["node_modules", "src/"] } }
+    "import/resolver": {
+      "node": {
+        "moduleDirectory": ["node_modules", "src/"]
+      }
+    }
   },
   "globals": {
     "JSX": true

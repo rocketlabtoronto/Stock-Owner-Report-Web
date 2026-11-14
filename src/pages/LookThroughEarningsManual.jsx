@@ -5,155 +5,155 @@ import CustomTypography from "components/CustomTypography";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 
+const accentColor = "#0d1b2a";
+const containerStyle = {
+  backgroundColor: "#ffffff",
+  boxShadow: "none",
+  borderRadius: 0,
+  border: "none",
+  borderTop: "3px solid #0d1b2a",
+  borderBottom: "1px solid #d6d9de",
+  fontFamily: "inherit",
+  lineHeight: 1.6,
+  fontSize: 15,
+  color: "#0d1b2a",
+};
+
+const headingStyle = {
+  fontFamily: "inherit",
+  fontWeight: 700,
+  color: "#0d1b2a",
+  lineHeight: 1.15,
+  marginBottom: 12,
+  letterSpacing: "-0.02em",
+};
+
+const bodyStyle = {
+  fontFamily: "inherit",
+  fontSize: 14.5,
+  color: "#4b5563",
+  lineHeight: 1.75,
+  marginBottom: 12,
+};
+
+const sectionDivider = {
+  borderTop: "1px solid #d6d9de",
+  paddingTop: 24,
+  marginTop: 24,
+};
+
+const highlightBox = {
+  backgroundColor: "#f9fafb",
+  padding: "14px 18px",
+  margin: "16px 0",
+  borderLeft: "3px solid #0d1b2a",
+  fontSize: 14.5,
+  fontStyle: "italic",
+  color: "#1a3a5c",
+  borderRadius: 0,
+};
+
+const exampleBox = {
+  backgroundColor: "#f9fafb",
+  border: "1px solid #d6d9de",
+  borderRadius: 12,
+  padding: "16px 20px",
+  margin: "16px 0",
+};
+
+const listStyle = {
+  marginTop: 6,
+  marginBottom: 6,
+  marginLeft: 0,
+  listStyle: "none",
+  paddingLeft: 0,
+};
+
+const listItemStyle = {
+  marginBottom: 6,
+  position: "relative",
+  paddingLeft: 22,
+};
+
+const bulletStyle = {
+  position: "absolute",
+  left: 0,
+  fontWeight: "bold",
+};
+
+const Body = ({ children, style, ...props }) => (
+  <CustomTypography variant="body1" style={{ ...bodyStyle, ...style }} {...props}>
+    {children}
+  </CustomTypography>
+);
+
+const SectionTitle = ({ children, style }) => (
+  <CustomTypography
+    variant="h4"
+    style={{
+      ...headingStyle,
+      fontSize: 19,
+      fontWeight: 700,
+      letterSpacing: -0.3,
+      color: "#0d1b2a",
+      marginBottom: 10,
+      paddingLeft: 12,
+      borderLeft: "3px solid #0d1b2a",
+      ...style,
+    }}
+  >
+    {children}
+  </CustomTypography>
+);
+
+const Highlight = ({ children }) => <div style={highlightBox}>{children}</div>;
+
+const ExampleBox = ({ children }) => <div style={exampleBox}>{children}</div>;
+
+const BulletList = ({ items, bulletColor = accentColor, listOverrides = {}, itemOverrides = {} }) => (
+  <ul style={{ ...listStyle, ...listOverrides }}>
+    {items.map((item, index) => {
+      const isConfig =
+        item && typeof item === "object" && Object.prototype.hasOwnProperty.call(item, "content");
+      const content = isConfig ? item.content : item;
+      const color = isConfig && item.bulletColor ? item.bulletColor : bulletColor;
+
+      return (
+        <li key={index} style={{ ...listItemStyle, ...itemOverrides }}>
+          <span style={{ ...bulletStyle, color }}>•</span>
+          {content}
+        </li>
+      );
+    })}
+  </ul>
+);
+
+Body.propTypes = {
+  children: PropTypes.node.isRequired,
+  style: PropTypes.object,
+};
+
+SectionTitle.propTypes = {
+  children: PropTypes.node.isRequired,
+  style: PropTypes.object,
+};
+
+Highlight.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+ExampleBox.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+BulletList.propTypes = {
+  items: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.node, PropTypes.object])).isRequired,
+  bulletColor: PropTypes.string,
+  listOverrides: PropTypes.object,
+  itemOverrides: PropTypes.object,
+};
+
 function StockOwnersReportManual() {
-  const accentColor = "#0d1b2a";
-  const containerStyle = {
-    backgroundColor: "#ffffff",
-    boxShadow: "none",
-    borderRadius: 0,
-    border: "none",
-    borderTop: "3px solid #0d1b2a",
-    borderBottom: "1px solid #d6d9de",
-    fontFamily: "inherit",
-    lineHeight: 1.6,
-    fontSize: 15,
-    color: "#0d1b2a",
-  };
-
-  const headingStyle = {
-    fontFamily: "inherit",
-    fontWeight: 700,
-    color: "#0d1b2a",
-    lineHeight: 1.15,
-    marginBottom: 12,
-    letterSpacing: "-0.02em",
-  };
-
-  const bodyStyle = {
-    fontFamily: "inherit",
-    fontSize: 14.5,
-    color: "#4b5563",
-    lineHeight: 1.75,
-    marginBottom: 12,
-  };
-
-  const sectionDivider = {
-    borderTop: "1px solid #d6d9de",
-    paddingTop: 24,
-    marginTop: 24,
-  };
-
-  const highlightBox = {
-    backgroundColor: "#f9fafb",
-    padding: "14px 18px",
-    margin: "16px 0",
-    borderLeft: "3px solid #0d1b2a",
-    fontSize: 14.5,
-    fontStyle: "italic",
-    color: "#1a3a5c",
-    borderRadius: 0,
-  };
-
-  const exampleBox = {
-    backgroundColor: "#f9fafb",
-    border: "1px solid #d6d9de",
-    borderRadius: 12,
-    padding: "16px 20px",
-    margin: "16px 0",
-  };
-
-  const listStyle = {
-    marginTop: 6,
-    marginBottom: 6,
-    marginLeft: 0,
-    listStyle: "none",
-    paddingLeft: 0,
-  };
-
-  const listItemStyle = {
-    marginBottom: 6,
-    position: "relative",
-    paddingLeft: 22,
-  };
-
-  const bulletStyle = {
-    position: "absolute",
-    left: 0,
-    fontWeight: "bold",
-  };
-
-  const Body = ({ children, style, ...props }) => (
-    <CustomTypography variant="body1" style={{ ...bodyStyle, ...style }} {...props}>
-      {children}
-    </CustomTypography>
-  );
-
-  const SectionTitle = ({ children, style }) => (
-    <CustomTypography
-      variant="h4"
-      style={{
-        ...headingStyle,
-        fontSize: 19,
-        fontWeight: 700,
-        letterSpacing: -0.3,
-        color: "#0d1b2a",
-        marginBottom: 10,
-        paddingLeft: 12,
-        borderLeft: "3px solid #0d1b2a",
-        ...style,
-      }}
-    >
-      {children}
-    </CustomTypography>
-  );
-
-  const Highlight = ({ children }) => <div style={highlightBox}>{children}</div>;
-
-  const ExampleBox = ({ children }) => <div style={exampleBox}>{children}</div>;
-
-  const BulletList = ({ items, bulletColor = accentColor, listOverrides = {}, itemOverrides = {} }) => (
-    <ul style={{ ...listStyle, ...listOverrides }}>
-      {items.map((item, index) => {
-        const isConfig =
-          item && typeof item === "object" && Object.prototype.hasOwnProperty.call(item, "content");
-        const content = isConfig ? item.content : item;
-        const color = isConfig && item.bulletColor ? item.bulletColor : bulletColor;
-
-        return (
-          <li key={index} style={{ ...listItemStyle, ...itemOverrides }}>
-            <span style={{ ...bulletStyle, color }}>•</span>
-            {content}
-          </li>
-        );
-      })}
-    </ul>
-  );
-
-  Body.propTypes = {
-    children: PropTypes.node.isRequired,
-    style: PropTypes.object,
-  };
-
-  SectionTitle.propTypes = {
-    children: PropTypes.node.isRequired,
-    style: PropTypes.object,
-  };
-
-  Highlight.propTypes = {
-    children: PropTypes.node.isRequired,
-  };
-
-  ExampleBox.propTypes = {
-    children: PropTypes.node.isRequired,
-  };
-
-  BulletList.propTypes = {
-    items: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.node, PropTypes.object])).isRequired,
-    bulletColor: PropTypes.string,
-    listOverrides: PropTypes.object,
-    itemOverrides: PropTypes.object,
-  };
-
   return (
     <DashboardLayout>
       <DashboardNavbar />

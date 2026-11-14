@@ -11,13 +11,11 @@ export const useAuthStore = create(
       setUser: (user) => set({ user }),
       setSnapTradeContext: (snapTradeUserId, snapUserSecret) =>
         set({ snapTradeUserId, snapUserSecret }),
-      clearSnapTradeContext: () => set({ snapTradeUserId: null, snapUserSecret: null }),
       clearUser: () => set({ user: null }),
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
     }),
     {
       name: "auth-storage",
-      getStorage: () => localStorage,
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

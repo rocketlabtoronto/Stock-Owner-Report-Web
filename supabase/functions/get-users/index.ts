@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { Snaptrade } from "npm:snaptrade-typescript-sdk";
 import { createStructuredLogger } from "../_shared/logging.ts";
+import { createJsonResponder } from "../_shared/http.ts";
 
 // Business purpose: list SnapTrade users for operations visibility and support workflows.
 const corsHeaders = {
@@ -9,8 +10,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: corsHeaders });
+const json = createJsonResponder(corsHeaders);
 
 serve(async (req: Request) => {
   const logger = createStructuredLogger("get-users");
