@@ -2,9 +2,7 @@ import colors from "assets/theme/base/colors";
 import typography from "assets/theme/base/typography";
 import borders from "assets/theme/base/borders";
 import boxShadows from "assets/theme/base/boxShadows";
-import pxToRem from "assets/theme/functions/pxToRem";
-import rgba from "assets/theme/functions/rgba";
-import linearGradient from "assets/theme/functions/linearGradient";
+import { pxToRem, rgba, linearGradient } from "assets/theme/functions";
 
 const input = {
   styleOverrides: {

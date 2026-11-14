@@ -13,8 +13,9 @@ node_modules/
 
 # Local tooling and logs
 .vercel/
+/supabase/.branches/
+/supabase/.temp/
 *.log
-commit.sh
 
 # OS and editor temporary files
 .DS_Store

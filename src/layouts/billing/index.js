@@ -1,20 +1,39 @@
+import { useEffect } from "react";
 import Card from "@mui/material/Card";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 
-// @mui material components
-// import Button from '@mui/material/Button';
-
-// Custom Dashboard 2 MUI components
 import CustomBox from "components/CustomBox";
 import CustomTypography from "components/CustomTypography";
 
-// Custom Dashboard 2 MUI components
-
-// Billing page components
-import BillingInformation from "layouts/billing/components/BillingInformation";
-
 function Billing() {
+  const pricingTableId = process.env.REACT_APP_STRIPE_PRICING_TABLE_ID;
+  const publishableKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://js.stripe.com/v3/pricing-table.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    const style = document.createElement("style");
+    style.innerHTML = `
+      stripe-pricing-table .PricingTableSelector__Select,
+      stripe-pricing-table .PricingTableSelector__Button {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.body.removeChild(script);
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
     <DashboardLayout>
       <DashboardNavbar />
@@ -47,7 +66,11 @@ function Billing() {
             >
               Billing
             </CustomTypography>
-            <BillingInformation />
+            <div
+              dangerouslySetInnerHTML={{
+                __html: `<stripe-pricing-table pricing-table-id="${pricingTableId}" publishable-key="${publishableKey}"></stripe-pricing-table>`,
+              }}
+            />
           </Card>
         </CustomBox>
       </CustomBox>

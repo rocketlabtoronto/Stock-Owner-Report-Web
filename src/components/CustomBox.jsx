@@ -1,7 +1,9 @@
+import { forwardRef } from "react";
+import PropTypes from "prop-types";
 import Box from "@mui/material/Box";
 import { styled } from "@mui/material/styles";
 
-export default styled(Box)(({ theme, ownerState }) => {
+const CustomBoxRoot = styled(Box)(({ theme, ownerState }) => {
   const { palette, functions, borders, boxShadows } = theme;
   const { variant, bgColor, color, opacity, borderRadius, shadow } = ownerState;
   const resolveColor = (value) =>
@@ -23,3 +25,33 @@ export default styled(Box)(({ theme, ownerState }) => {
     boxShadow: boxShadows[shadow] ?? shadow,
   };
 });
+
+const CustomBox = forwardRef(
+  ({ variant, bgColor, color, opacity, borderRadius, shadow, ...rest }, ref) => (
+    <CustomBoxRoot
+      {...rest}
+      ref={ref}
+      ownerState={{ variant, bgColor, color, opacity, borderRadius, shadow }}
+    />
+  )
+);
+
+CustomBox.defaultProps = {
+  variant: "contained",
+  bgColor: "transparent",
+  color: "dark",
+  opacity: 1,
+  borderRadius: "none",
+  shadow: "none",
+};
+
+CustomBox.propTypes = {
+  variant: PropTypes.oneOf(["contained", "gradient"]),
+  bgColor: PropTypes.string,
+  color: PropTypes.string,
+  opacity: PropTypes.number,
+  borderRadius: PropTypes.string,
+  shadow: PropTypes.string,
+};
+
+export default CustomBox;
