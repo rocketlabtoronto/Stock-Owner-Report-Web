@@ -1,121 +1,108 @@
-# The Stock Owner's Report – Dashboard
+# The Stock Owner's Report
 
-## Current Product Model (Workflow #3)
-- The dashboard is public-first: core routes are accessible without auth guards.
-- Landing route is `/brokeragesAndAccounts`.
-- SnapTrade connect flow is available to visitors.
-- Financial statement paywall is guest-only:
-  - guests see first 5 rows + blurred remainder + CTA to `/billing`
-  - logged-in users see full rows (no blur, no paywall)
+A public-first portfolio dashboard that turns brokerage holdings into prorated company balance sheets and income statements. Built with React 18, Create React App, MUI, AG Grid, Zustand, and Supabase, with SnapTrade, Stripe, and Postmark integrations.
 
-## Tech Stack
-- Frontend: React (CRA) + MUI + AG Grid
-- State: Zustand (`useAuthStore`, `useAppStore`)
-- Backend: Supabase Postgres + Edge Functions
-- Integrations: SnapTrade + Postmark + Stripe webhook
+## Getting started
 
-## Key Runtime Flows
+Use Node.js 24 LTS (see [.nvmrc](.nvmrc)) and npm. Edge Function tests require at least Node.js 22.18 for native TypeScript support.
 
-### SnapTrade connect
-1. UI waits for auth-storage hydration and checks localStorage-backed `auth-storage` via `useAuthStore`.
-2. If `snapTradeUserId` and `snapUserSecret` both exist, UI uses them directly.
-3. If one or both are missing, UI calls `functions/v1/snaptrade-register-user-v2` once.
-4. Registration persists credentials in `snaptrade_users` for auditability and writes them to `auth-storage` for frontend reuse.
-5. UI calls `functions/v1/login-user` with `userId` + `userSecret` from auth-storage (no backend fallback).
-6. Redirect flow (`/snapTradeRedirect`) invokes `functions/v1/snaptrade-accounts`, persists accounts/holdings locally, then mandatorily calls `functions/v1/disconnect-user`.
-7. If SnapTrade rejects stored credentials, UI shows an explicit error and preserves auth-storage; it does not clear or regenerate credentials automatically.
+1. Copy [.env.example](.env.example) to `.env.development.local` and set the Supabase URL and browser anon key.
+2. Install dependencies and start the app:
 
-### Password reset / set password
-1. `/send-password-reset` calls `functions/v1/send-password-reset-link-email`.
-2. That function calls `functions/v1/create-and-get-tokenized-url` and sends email via Postmark.
-3. `/set-password?token=...` encrypts password client-side and calls `functions/v1/set-password-with-token`.
-4. Token is validated/consumed server-side and `users.password_hash` is updated.
+   ```bash
+   npm ci
+   npm start
+   ```
 
-### Stripe connection
-1. User starts checkout from the billing flow.
-2. Stripe handles payment and redirects using the Checkout session success/cancel URLs configured for the product.
-3. Supabase Edge Function `functions/v1/stripe-webhook` processes Stripe webhook events.
-4. Webhook updates subscription state in the `users` table (`is_subscribed`, interval, and payment timestamps).
-5. Webhook sends activation/onboarding email when required by the event flow.
+Open <http://localhost:3000>. The root serves the marketing page; `/brokeragesAndAccounts` opens the dashboard. Keep environment-specific values in ignored `.env.development.local` and `.env.production.local` files.
 
-Current implementation note:
-- The activation link used in webhook email content is currently production-domain based (`stockownerreport.com`).
-- If you need environment-specific links (local/staging/prod), move this to an environment-driven variable in the webhook function.
+The lockfile is committed. Use `npm install` when changing dependencies and include the updated lockfile. [.npmrc](.npmrc) keeps the legacy peer resolution required by CRA 5 with this project's TypeScript version. AJV 8 is an explicit development dependency to keep the CRA/Webpack validator dependencies compatible.
 
 ## Configuration
-Create `.env` in project root:
 
-```env
-REACT_APP_SUPABASE_URL=<your-supabase-url>
-REACT_APP_SUPABASE_ANON_KEY=<your-supabase-anon-key>
-```
+All `REACT_APP_*` variables are embedded in the browser bundle. Keep service-role, SnapTrade consumer, Stripe secret, and Postmark keys in Edge Function secrets.
 
-Supabase Edge Function secrets for Stripe webhook should include Stripe API/signing variables used by `stripe-webhook`.
+| Variable                            | Purpose                                                   |
+| ----------------------------------- | --------------------------------------------------------- |
+| `REACT_APP_SUPABASE_URL`            | Supabase project URL; required                            |
+| `REACT_APP_SUPABASE_ANON_KEY`       | Browser anon key; required by the current client          |
+| `REACT_APP_STRIPE_PRICING_TABLE_ID` | Optional Stripe pricing table ID                          |
+| `REACT_APP_STRIPE_PUBLISHABLE_KEY`  | Optional Stripe browser publishable key                   |
+| `REACT_APP_DISABLE_SNAPTRADE`       | Set to `true` to use manual CSV uploads only              |
+| `REACT_APP_FAKE_EQUITY`             | Development fixture toggle; keep `false` for real reports |
 
-Restart dev server after env changes.
-
-## Development
-
-```bash
-npm ci
-npm start
-```
-
-The lockfile is committed. Use `npm install` when changing dependencies and include the updated lockfile.
-
-## Code Structure
-
-- [Routes](src/routes.js) load pages on demand; report and PDF dependencies load when a financial page is opened.
-- [Financial statements](src/layouts/financialStatements) share one page, account selector, loading hook, and calculation model. Add report-specific columns and financial tags in [reports.js](src/layouts/financialStatements/reports.js).
-- [Account calculations](src/layouts/brokeragesAndAccounts/accountModel.js) are independent of React; [useAccountBalances](src/layouts/brokeragesAndAccounts/useAccountBalances.js) handles loading and ignores stale requests.
-- [SnapTrade connection context](src/services/snaptradeConnectionService.js) reuses stored credentials and shares concurrent registration requests.
-- [Theme overrides](src/assets/theme/components/index.js) contain the styles used by the app. Unreachable dark-mode template support has been removed.
-- [Edge Function helpers](supabase/functions/_shared) share HTTP/CORS formatting, password email requests, and retry logic. Each endpoint retains its own access policy.
+Restart the development server after changing environment settings. CRA uses development settings for `npm start` and production settings for `npm run build`. For a local production build, copy the template to `.env.production.local`; configure the same variables in the hosting provider for deployed builds. Only environment templates belong in Git.
 
 ## Verification
 
 ```bash
-npm run lint
-npm run test:ci
-npm run test:edge
-npx tsc --noEmit
-npm run build
+npm run check
 ```
 
-Frontend tests cover financial calculations, guest access, exports, account switching, shared quotes, and SnapTrade registration. Edge tests verify request contracts using mocked services; `test:edge` requires Node.js 22.18+ for native TypeScript support. Production Edge Functions still run in Deno and should also be checked in that runtime before deployment.
+This runs lint, frontend TypeScript checking, all frontend tests, mocked Edge Function tests, and a production build. The same command runs in [GitHub Actions](.github/workflows/ci.yml) with placeholder public configuration and no live-service credentials.
 
-## Build
+Individual checks are available as `npm run lint`, `npm run typecheck`, `npm run test:ci`, `npm run test:edge`, and `npm run build`. Use `npm test` for frontend watch mode.
+
+Frontend tests cover financial calculations, guest access, exports, account switching, shared quotes, and SnapTrade registration. Edge tests verify request contracts using mocked services.
+
+For Edge Function editing, install the Deno CLI and the recommended `denoland.vscode-deno` VS Code extension. The workspace enables Deno only under `supabase/functions` and uses [deno.json](supabase/functions/deno.json) to resolve URL and `npm:` imports. Reload the VS Code window after installing the extension. A frontend TypeScript check does not validate these Deno imports.
+
+Production Edge Functions run in Deno. Check changed functions in that runtime before deployment, for example:
+
+```bash
+deno check --config supabase/functions/deno.json supabase/functions/login-user/index.ts
+```
+
+Known limitation: the current unpinned SnapTrade SDK imports resolve to SDK 13.2.6 with incompatible constructor and response types. The Deno check above currently reports errors. Resolve that compatibility and pin the SDK before deploying affected functions; mocked Node endpoint tests do not detect upstream SDK type changes.
+
+## Project structure
+
+| Location                                     | Contents                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------- |
+| [src/](src/)                                 | React application, colocated tests, state, services, and theme                   |
+| [public/](public/)                           | Marketing page, app HTML entry point, images, brokerage logos, and CSV template  |
+| [supabase/functions/](supabase/functions/)   | Edge Functions, shared helpers, and mocked endpoint tests                        |
+| [supabase/migrations/](supabase/migrations/) | Database migration history; preserve applied migrations                          |
+| [docs/](docs/)                               | Architecture, authentication, SnapTrade integration, and requirements            |
+| [.vscode/](.vscode/)                         | Shared debugger, Deno settings, extension recommendations, and MCP configuration |
+
+Documentation:
+
+- [Architecture and business rules](docs/architecture.md)
+- [Login, sessions, and password lifecycle](docs/authentication.md)
+- [SnapTrade connection flow](docs/snaptrade.md)
+- [Business requirements snapshot](docs/business-requirements.html) (open in a browser; consult the architecture and code for current implementation details)
+
+## Build and deployment
 
 ```bash
 npm run build
 ```
 
-Deploy the `build/` directory to static hosting.
+Deploy the generated `build/` directory to static hosting. Serve existing static files directly, including `/landing_page.html`, and route dashboard paths such as `/balanceSheet` and `/set-password` to `/index.html` so direct links and browser refreshes work.
 
-## Supabase Edge Functions
+## Supabase development and deployment
+
+Use the repository's CLI through `npx supabase`. For local Edge Function development, copy [supabase/functions/.env.example](supabase/functions/.env.example) to `supabase/functions/.env` and fill in the integrations you need. Supabase injects `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` into the runtime. Local Supabase services require Docker. Seed loading is disabled because the project has no seed data.
 
 ```bash
-supabase login
-supabase link --project-ref <project_ref>
-supabase functions deploy
-supabase functions list
+npx supabase start
+npx supabase functions serve
 ```
 
-Delete remote functions that are no longer local:
+For hosted functions, configure matching secrets in the Supabase Dashboard, then deploy the specific function you changed:
 
-```powershell
-$local = Get-ChildItem .\supabase\functions -Directory | Select-Object -ExpandProperty Name
-$remote = (supabase functions list --output json | ConvertFrom-Json) | Select-Object -ExpandProperty name
-$toDelete = $remote | Where-Object { $_ -notin $local }
-foreach ($fn in $toDelete) { supabase functions delete $fn }
+```bash
+npx supabase login
+npx supabase link --project-ref <project_ref>
+npx supabase functions deploy <function-name>
+npx supabase functions list
 ```
 
-## Security & Ops Notes
-- Keep service-role keys server-side only (Edge Functions).
-- CORS allowlists are enforced in password reset and set-password functions.
-- `set-password-with-token` preflight must allow `x-client-info` for Supabase browser invokes.
-- Use Supabase Edge logs for debugging (`edge-function` service).
+Each endpoint retains its access policy in code and [config.toml](supabase/config.toml). Password email links depend on `APP_BASE_URL`; set it to the correct environment. Use Function Logs for diagnostics. Local file cleanup does not remove deployed functions; review remote retirement separately.
 
-## Support
-- Contact: howard@stockownerreport.com
+## Support and attribution
 
+Contact: howard@stockownerreport.com.
+
+The dashboard originated from a Creative Tim dashboard template. The existing package license reference remains in [package.json](package.json); this cleanup does not change licensing terms.

@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      REACT_APP_SUPABASE_URL: https://example.supabase.co
+      REACT_APP_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      REACT_APP_DISABLE_SNAPTRADE: "true"
+      REACT_APP_FAKE_EQUITY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check

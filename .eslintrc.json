@@ -11,7 +11,7 @@
     "ecmaVersion": 12,
     "sourceType": "module"
   },
-  "plugins": ["react", "react-hooks", "import", "prettier", "unused-imports"],
+  "plugins": ["react", "react-hooks", "import", "unused-imports"],
   "rules": {
     "react/jsx-filename-extension": [
       1,

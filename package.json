@@ -1,15 +1,18 @@
 {
-  "name": "Custom-dashboard-mui",
+  "name": "stock-owner-report-web",
   "version": "3.0.1",
-  "author": "Creative Tim",
+  "private": true,
   "license": "SEE LICENSE IN <https://www.creative-tim.com/license>",
-  "description": "React version of Custom Dashboard 2 by Creative Tim",
+  "description": "The Stock Owner's Report portfolio analysis dashboard",
   "bugs": {
-    "url": "https://github.com/creativetimofficial/Custom-dashboard-material-ui/issues"
+    "url": "https://github.com/rocketlabtoronto/Stock-Owner-Report-Web/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/creativetimofficial/Custom-dashboard-material-ui.git"
+    "url": "git+https://github.com/rocketlabtoronto/Stock-Owner-Report-Web.git"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",
@@ -20,7 +23,6 @@
     "@supabase/supabase-js": "^2.52.0",
     "ag-grid-community": "^34.0.2",
     "ag-grid-react": "^34.0.2",
-    "ajv": "^8.17.1",
     "chroma-js": "2.4.2",
     "jspdf": "^2.5.1",
     "papaparse": "^5.5.3",
@@ -35,10 +37,11 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
     "test:ci": "react-scripts test --watchAll=false --runInBand",
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx --max-warnings=0",
-    "test:edge": "node --test supabase/functions/_tests/*.test.*"
+    "test:edge": "node --test supabase/functions/_tests/*.test.*",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run test:ci && npm run test:edge && npm run build"
   },
   "browserslist": {
     "production": [
@@ -53,24 +56,21 @@
     ]
   },
   "devDependencies": {
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "ajv": "^8.17.1",
     "eslint": "8.57.1",
     "eslint-config-prettier": "8.8.0",
     "eslint-plugin-import": "2.27.5",
-    "eslint-plugin-prettier": "4.2.1",
     "eslint-plugin-react": "7.32.2",
     "eslint-plugin-react-hooks": "4.6.0",
     "eslint-plugin-unused-imports": "3.2.0",
     "prettier": "2.8.8",
     "typescript": "^5.8.3",
-    "@testing-library/jest-dom": "5.16.5",
     "@testing-library/react": "14.0.0",
-    "@testing-library/user-event": "14.4.3",
     "supabase": "^2.74.5"
   },
   "overrides": {
     "svgo": "3.0.2"
-  },
-  "config": {}
+  }
 }

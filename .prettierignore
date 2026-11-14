@@ -1,0 +1,9 @@
+node_modules/
+build/
+dist/
+coverage/
+package-lock.json
+.env*
+supabase/.temp/
+supabase/.branches/
+supabase/migrations/
