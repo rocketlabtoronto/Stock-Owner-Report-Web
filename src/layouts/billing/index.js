@@ -1,14 +1,30 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Card from "@mui/material/Card";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 
 import CustomBox from "components/CustomBox";
 import CustomTypography from "components/CustomTypography";
+import PaymentSuccessModal from "./PaymentSuccessModal";
 
 function Billing() {
   const pricingTableId = process.env.REACT_APP_STRIPE_PRICING_TABLE_ID;
   const publishableKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Stripe's Pricing Table redirects back here with ?session_id={CHECKOUT_SESSION_ID}
+  // once "Confirmation page" is set to redirect to this page (see README). Gate the
+  // user behind a confirmation modal before sending them on to log in.
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(
+    () => new URLSearchParams(location.search).get("session_id") !== null
+  );
+
+  const handlePaymentSuccessOk = () => {
+    setShowPaymentSuccess(false);
+    navigate("/login", { replace: true });
+  };
 
   useEffect(() => {
     const script = document.createElement("script");
@@ -74,6 +90,7 @@ function Billing() {
           </Card>
         </CustomBox>
       </CustomBox>
+      <PaymentSuccessModal open={showPaymentSuccess} onOk={handlePaymentSuccessOk} />
     </DashboardLayout>
   );
 }

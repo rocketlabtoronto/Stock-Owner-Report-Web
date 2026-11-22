@@ -91,7 +91,11 @@ test("SnapTrade browser endpoints retain wildcard preflight headers", async () =
 });
 
 test("password endpoints preserve origin rejection and preflight policies", async () => {
-  for (const name of ["send-password-reset-link-email", "set-password-with-token"]) {
+  for (const name of [
+    "send-password-reset-link-email",
+    "set-password-with-token",
+    "authenticate-user",
+  ]) {
     const handler = loadEndpoint(name);
     const preflight = await handler(
       request("OPTIONS", undefined, { origin: "https://attacker.test" })
@@ -252,4 +256,98 @@ test("paid invoices retain user upsert and activation email behavior", async () 
   assert.equal(payload.subscription_interval, "month");
   assert.equal(message.To, "user@example.test");
   assert.match(message.HtmlBody, /token=test&mode=activation/);
+});
+
+// Mirrors src/services/encryptionService.js so test fixtures decrypt correctly
+// against the real authenticate-user handler (no mocking of the crypto itself).
+async function encryptPasswordForTest(password) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode("LTPSecretKey123!"),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: enc.encode("LTP-Salt-2025"), iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"]
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    enc.encode(password)
+  );
+  const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(ciphertext), iv.length);
+  return Buffer.from(combined).toString("base64");
+}
+
+test("authenticate-user verifies credentials against public.users via the service role", async () => {
+  const passwordHash = await encryptPasswordForTest("CorrectHorseBattery1!");
+  const users = {
+    "active@example.test": {
+      email: "active@example.test",
+      phone: null,
+      subscription_interval: "month",
+      last_payment_at: new Date().toISOString(),
+      password_hash: passwordHash,
+    },
+    "expired@example.test": {
+      email: "expired@example.test",
+      phone: null,
+      subscription_interval: "month",
+      last_payment_at: "2000-01-01T00:00:00.000Z",
+      password_hash: passwordHash,
+    },
+  };
+  const createClient = () => ({
+    from: (table) => {
+      assert.equal(table, "users");
+      return {
+        select: () => ({
+          eq: (column, value) => {
+            assert.equal(column, "email");
+            return { maybeSingle: async () => ({ data: users[value] ?? null, error: null }) };
+          },
+        }),
+      };
+    },
+  });
+  const handler = loadEndpoint("authenticate-user", { createClient });
+
+  const ok = await handler(
+    request("POST", { email: "active@example.test", password: "CorrectHorseBattery1!" })
+  );
+  const okBody = await ok.json();
+  assert.equal(okBody.success, true);
+  assert.equal(okBody.user.email, "active@example.test");
+  assert.equal("password_hash" in okBody.user, false);
+
+  const wrongPassword = await handler(
+    request("POST", { email: "active@example.test", password: "nope" })
+  );
+  assert.deepEqual(await wrongPassword.json(), {
+    success: false,
+    error: "Invalid email or password.",
+  });
+
+  const unknown = await handler(request("POST", { email: "missing@example.test", password: "x" }));
+  assert.deepEqual(await unknown.json(), {
+    success: false,
+    error: "Invalid email or password.",
+  });
+
+  const expired = await handler(
+    request("POST", { email: "expired@example.test", password: "CorrectHorseBattery1!" })
+  );
+  const expiredBody = await expired.json();
+  assert.equal(expiredBody.success, false);
+  assert.equal(expiredBody.subscriptionExpired, true);
+  assert.ok(expiredBody.expiresAt);
 });

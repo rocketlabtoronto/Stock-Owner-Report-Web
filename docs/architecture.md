@@ -24,7 +24,7 @@ Missing or invalid values remain `N/A`; ownership is displayed as “1 in X”. 
 
 ## Login and password lifecycle
 
-[Login](../src/layouts/login/login.jsx) reads `public.users`, decrypts the stored password for comparison, and checks subscription validity from `subscription_interval` and `last_payment_at`.
+`public.users` has RLS enabled with no policies and no anon/authenticated grants (see the `lock_down_public_tables` migration), so [Login](../src/layouts/login/login.jsx) cannot query it directly. It instead calls the `authenticate-user` Edge Function, which uses the service role to look up the row, decrypt the stored password for comparison, and check subscription validity from `subscription_interval` and `last_payment_at`. The function returns the user row (minus `password_hash`) on success, or `subscriptionExpired`/`expiresAt` so the client can render the renew CTA with the viewer's own locale/timezone.
 
 [useAuthStore](../src/stores/useAuthStore.js) keeps the application `user` in memory. It persists only `snapTradeUserId` and `snapUserSecret` in `auth-storage`. Both logout entry points clear the session user and redirect to `/login`, preserving the account and SnapTrade caches. [supabaseClient](../src/supabaseClient.ts) sets `auth.persistSession: false`; Supabase Auth listeners do not bootstrap this application's login state.
 
@@ -51,6 +51,8 @@ Rejected stored credentials produce an error and remain stored; do not silently 
 
 [Billing](../src/layouts/billing/index.js) embeds the environment-configured Stripe pricing table. `stripe-webhook` verifies signatures, processes `invoice.payment_succeeded`, upserts subscription details in `public.users`, and requests a tokenized Postmark activation email.
 
-All backend entry points are in [supabase/functions](../supabase/functions/). `get-users` is an operational SnapTrade utility. Shared HTTP, CORS, logging, password-link, and retry helpers live in [\_shared](../supabase/functions/_shared/). Each endpoint keeps its access policy in code and [config.toml](../supabase/config.toml). Use Supabase Function Logs for diagnostics.
+The Stripe Dashboard's Pricing Table **Confirmation page** setting must redirect back to `<APP_BASE_URL>/billing?session_id={CHECKOUT_SESSION_ID}` for both the Dev and Prod pricing tables. When Billing sees a `session_id` query param, it shows [PaymentSuccessModal](../src/layouts/billing/PaymentSuccessModal.js) (a non-dismissible "Payment successful" dialog telling the customer to check their inbox and activate via email) and navigates to `/login` once the user clicks OK.
+
+All backend entry points are in [supabase/functions](../supabase/functions/). `get-users` is an operational SnapTrade utility. Shared HTTP, CORS, logging, password-link, encryption, subscription-expiry, and retry helpers live in [\_shared](../supabase/functions/_shared/). Each endpoint keeps its access policy in code and [config.toml](../supabase/config.toml). Use Supabase Function Logs for diagnostics.
 
 Preserve applied migrations and operational endpoints even when the frontend does not import them. Mocked endpoint tests cover request contracts; validate Deno types and live integrations separately before deployment.
