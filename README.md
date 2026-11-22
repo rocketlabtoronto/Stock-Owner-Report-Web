@@ -34,7 +34,9 @@ Edge Functions run in Deno. VS Code enables Deno only for [supabase/functions](s
 deno check --config supabase/functions/deno.json supabase/functions/login-user/index.ts
 ```
 
-SnapTrade SDK imports are pinned to the version Prod was built with (`npm:snaptrade-typescript-sdk@9.0.191`). Do not return to an unpinned import: SDK 13.x changed the `Snaptrade` constructor and fails with `Cannot read properties of undefined (reading 'mode')`. Upgrade deliberately, test against Dev, and change all five SDK-using functions together. Mocked Node tests do not detect upstream SDK changes.
+SnapTrade SDK imports are pinned to the version Prod was built with (`npm:snaptrade-typescript-sdk@9.0.191`), and Stripe is pinned to `npm:stripe@22.1.0`. Do not return to unpinned imports: a redeploy resolves them to the newest release, and SnapTrade SDK 13.x changed the `Snaptrade` constructor and fails with `Cannot read properties of undefined (reading 'mode')`. Upgrade deliberately, test against Dev, and change every function that imports the package together. Mocked Node tests do not detect upstream SDK changes.
+
+Prod and Dev run the same function code. Deploy to Dev first, then Prod, with `npx supabase functions deploy --project-ref <project_ref> --use-api`. Secrets and `APP_BASE_URL` are set per project in the Supabase Dashboard and are never part of a deploy.
 
 ## Deployment
 

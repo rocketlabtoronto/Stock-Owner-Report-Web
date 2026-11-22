@@ -49,7 +49,7 @@ function loadEndpoint(name, options = {}) {
             }
           },
         };
-      if (specifier === "npm:stripe")
+      if (specifier.startsWith("npm:stripe"))
         return class {
           webhooks = { constructEventAsync: options.constructEvent ?? unexpected };
         };

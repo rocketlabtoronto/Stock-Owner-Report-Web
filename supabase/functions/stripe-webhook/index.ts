@@ -16,7 +16,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import Stripe from "npm:stripe";
+import Stripe from "npm:stripe@22.1.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createStructuredLogger } from "../_shared/logging.ts";
 import {
