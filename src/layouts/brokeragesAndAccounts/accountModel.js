@@ -1,10 +1,10 @@
 import { logoFromBank } from "utils/brokerageLogos";
+import { dataExchangeOf, splitAccountLabel, unsupportedMarketsOf } from "utils/portfolioSchema";
 
 const holdingsOf = (account) => (Array.isArray(account?.holdings) ? account.holdings : []);
 const symbolOf = (holding) => holding.Symbol || holding.symbol;
 const quantityOf = (holding) => parseFloat(holding.Quantity || holding.shares || 0);
 const isValidHolding = (holding) => symbolOf(holding) && quantityOf(holding) > 0;
-const allowedMarkets = new Set(["NASDAQ", "NYSE"]);
 
 function fallbackBalance(holdings) {
   const hasPrices = holdings.some((holding) => holding.currentPrice > 0 || holding.marketValue > 0);
@@ -28,16 +28,9 @@ export function groupBrokerageAccounts(accounts = [], balances = {}) {
     const holdings = holdingsOf(item);
     if (!holdings.length) continue;
     const raw = String(item.Account || "");
-    const [name, number = ""] = raw.split(" - ");
-    const brokerageName = (name || "Unknown Brokerage").trim();
-    if (!brokerageName) continue;
-    const accountNumber = number.trim();
-    const markets = holdings.map((holding) =>
-      String(holding.Market || holding.market || "")
-        .trim()
-        .toUpperCase()
-    );
-    const disallowed = markets.filter((market) => !allowedMarkets.has(market));
+    const [name, accountNumber] = splitAccountLabel(raw);
+    const brokerageName = name || "Unknown Brokerage";
+    const disallowed = unsupportedMarketsOf(holdings);
     const equitiesValue = balances[raw] ?? fallbackBalance(holdings);
     const account = {
       id: accountNumber || raw || `brokerage_${index}`,
@@ -80,19 +73,27 @@ export async function loadAccountBalances(accounts, getStockPrices) {
           .filter(isValidHolding)
           .map(async (holding) => {
             const symbol = symbolOf(holding);
-            if (!quotes.has(symbol))
+            const exchange = dataExchangeOf(holding);
+            const quoteKey = `${exchange || ""}:${symbol}`;
+            if (!quotes.has(quoteKey))
               quotes.set(
-                symbol,
+                quoteKey,
                 Promise.resolve()
-                  .then(() => getStockPrices({ symbol }))
+                  .then(() => getStockPrices(exchange ? { symbol, exchange } : { symbol }))
                   .catch(() => [])
               );
-            const rows = await quotes.get(symbol);
+            const rows = await quotes.get(quoteKey);
             const price = parseFloat(rows?.[0]?.price || 0);
-            return price > 0 ? quantityOf(holding) * price : 0;
+            return price > 0 ? quantityOf(holding) * price : null;
           })
       );
-      return [String(account.Account || ""), values.reduce((sum, value) => sum + value, 0)];
+      const priced = values.filter((value) => value !== null);
+      // No quote for any holding means the value is unknown, not zero.
+      const balance =
+        values.length > 0 && priced.length === 0
+          ? null
+          : priced.reduce((sum, value) => sum + value, 0);
+      return [String(account.Account || ""), balance];
     })
   );
   return Object.fromEntries(pairs);

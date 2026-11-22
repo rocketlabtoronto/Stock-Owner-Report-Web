@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import supabaseService from "services/supabaseService";
-import { balanceSheet } from "./reports";
+import { useReportAccountStore } from "stores/useReportAccountStore";
+import { balanceSheet, incomeStatement } from "./reports";
 import useFinancialStatement from "./useFinancialStatement";
 
 let mockAccounts;
@@ -17,6 +18,24 @@ const account = (id, symbol) => ({
 beforeEach(() => {
   mockAccounts = [account("First - 1", "FIRST"), account("Second - 2", "SECOND")];
   supabaseService.getFinancials.mockReset();
+  useReportAccountStore.setState({ selectedAccountId: null });
+});
+
+test("the selected account tab applies to both the balance sheet and the income statement", async () => {
+  supabaseService.getFinancials.mockResolvedValue([]);
+  const { result: balance, unmount } = renderHook(() => useFinancialStatement(balanceSheet));
+  act(() => balance.current.selectAccount("Second - 2"));
+  await waitFor(() =>
+    expect(balance.current.aggregatedData.rows[0]?.Company).toBe("SECOND (SECOND)")
+  );
+  unmount();
+
+  const { result: income } = renderHook(() => useFinancialStatement(incomeStatement));
+  expect(income.current.selectedAccount.id).toBe("Second - 2");
+  await waitFor(() => expect(income.current.loading).toBe(false));
+  expect(income.current.aggregatedData.rows.map((row) => row.Company)).toEqual([
+    "SECOND (SECOND)",
+  ]);
 });
 
 test("a slow previous account cannot replace the selected account's financial results", async () => {
@@ -30,7 +49,7 @@ test("a slow previous account cannot replace the selected account's financial re
   );
   const { result } = renderHook(() => useFinancialStatement(balanceSheet));
   await waitFor(() =>
-    expect(supabaseService.getFinancials).toHaveBeenCalledWith({ ticker: "FIRST" })
+    expect(supabaseService.getFinancials).toHaveBeenCalledWith({ ticker: "FIRST", exchange: "US" })
   );
 
   act(() => result.current.selectAccount("Second - 2"));

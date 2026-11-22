@@ -26,6 +26,7 @@ import AddBrokerageDialog from "./AddBrokerageDialog";
 import ConsentModal from "./ConsentModal";
 import SecurityDetailsModal from "./SecurityDetailsModal";
 import { bankLogoMap } from "utils/brokerageLogos";
+import { SUPPORTED_MARKETS } from "utils/portfolioSchema";
 import SignInModal from "./workspace/SignInModal";
 import UploadPortfolioDialog from "./workspace/UploadPortfolioDialog";
 import { ACTION_TO_WORKSPACE_TYPE, setPendingWorkspaceAction } from "./workspace/workspaceActions";
@@ -129,7 +130,8 @@ export default function BrokeragesAndAccounts() {
     const linkedCount = linked.length;
     const totalCount = accounts.length;
     const linkedBalance = linked.reduce((sum, a) => sum + (a.equitiesValue ?? 0), 0);
-    return { linkedCount, totalCount, linkedBalance };
+    const hasLinkedValue = linked.some((a) => a.equitiesValue != null);
+    return { linkedCount, totalCount, linkedBalance, hasLinkedValue };
   };
 
   return (
@@ -461,7 +463,7 @@ export default function BrokeragesAndAccounts() {
                 backgroundColor: "background.paper",
               }}
             >
-              {formattedConnectedAt && (
+              {formattedConnectedAt && workspace?.workspace_type !== "upload_portfolio" && (
                 <>
                   <Box
                     sx={{
@@ -512,7 +514,7 @@ export default function BrokeragesAndAccounts() {
               )}
 
               {brokerages.map((brokerage, index) => {
-                const { linkedCount, totalCount, linkedBalance } = computeSummary(
+                const { linkedCount, totalCount, linkedBalance, hasLinkedValue } = computeSummary(
                   brokerage.accounts
                 );
                 return (
@@ -579,7 +581,10 @@ export default function BrokeragesAndAccounts() {
                             color="text.secondary"
                             sx={{ fontWeight: 700, lineHeight: 1.1, fontSize: 12 }}
                           >
-                            Value: ${Math.round(linkedBalance).toLocaleString()}
+                            Value:{" "}
+                            {hasLinkedValue || linkedCount === 0
+                              ? `$${Math.round(linkedBalance).toLocaleString()}`
+                              : "N/A"}
                           </Typography>
                         </Box>
                       </Box>
@@ -589,7 +594,7 @@ export default function BrokeragesAndAccounts() {
                         {brokerage.accounts.map((account) => {
                           const isAvailable = account.isAvailable !== false;
                           const marketMessage = isAvailable
-                            ? "Supported by The Stock Owner Report (NYSE/NASDAQ)"
+                            ? `Supported by The Stock Owner Report (${SUPPORTED_MARKETS.join("/")})`
                             : `Unsupported market: ${
                                 account.disallowedMarkets?.length
                                   ? account.disallowedMarkets.join(", ")

@@ -23,11 +23,41 @@ test("groups accounts, excludes empty accounts, and retains the richer duplicate
 test("market availability requires every holding to be supported", () => {
   const groups = groupBrokerageAccounts([
     account([holding({ Market: " nyse " })], "Broker - 1"),
-    account([holding(), holding({ Market: "TSX" }), holding({ Market: "TSX" })], "Broker - 2"),
+    account([holding(), holding({ Market: "LSE" }), holding({ Market: "LSE" })], "Broker - 2"),
     account([holding({ Market: "" })], "Broker - 3"),
+    account([holding({ Market: "tsx" })], "Broker - 4"),
   ]);
-  expect(groups[0].accounts.map(({ included }) => included)).toEqual([true, false, false]);
-  expect(groups[0].accounts[1].disallowedMarkets).toEqual(["TSX"]);
+  expect(groups[0].accounts.map(({ included }) => included)).toEqual([true, false, false, true]);
+  expect(groups[0].accounts[1].disallowedMarkets).toEqual(["LSE"]);
+});
+
+test("accounts that share an institution stay separate when their names contain a separator", () => {
+  const groups = groupBrokerageAccounts([
+    account([holding()], "Questrade - TFSA - Personal"),
+    account([holding()], "Questrade - TFSA - Joint"),
+  ]);
+  expect(groups[0].accounts.map(({ accountNumber }) => accountNumber)).toEqual([
+    "TFSA - Personal",
+    "TFSA - Joint",
+  ]);
+});
+
+test("prices a holding on its own exchange and reports an unpriced account as unknown", async () => {
+  const prices = jest.fn(({ exchange }) =>
+    Promise.resolve(exchange === "US" ? [{ price: 10 }] : [])
+  );
+  const balances = await loadAccountBalances(
+    [
+      account([holding({ Symbol: "T" })], "Broker - US"),
+      account([holding({ Symbol: "T", Market: "TSX" })], "Broker - TSX"),
+    ],
+    prices
+  );
+  expect(prices.mock.calls.map(([query]) => query)).toEqual([
+    { symbol: "T", exchange: "US" },
+    { symbol: "T", exchange: "TSX" },
+  ]);
+  expect(balances).toEqual({ "Broker - US": 20, "Broker - TSX": null });
 });
 
 test("uses stored prices until quotes arrive and respects a calculated zero balance", () => {

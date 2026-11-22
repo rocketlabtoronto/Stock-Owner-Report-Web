@@ -1,4 +1,20 @@
 import { mapSnapTradeAccountsToSpreadsheet } from "./snaptradeMappingService";
+import { mapWorkspaceAccountsToSpreadsheet } from "./workspaceMappingService";
+
+test("an Excel-uploaded account maps to the same schema and bank identifier as a brokerage connection", () => {
+  const holdings = [
+    { Symbol: "TD", Market: "TSX", Quantity: "8.5", workspaceHoldingId: "h1", source: "excel_upload" },
+  ];
+  const [uploaded] = mapWorkspaceAccountsToSpreadsheet([
+    { Account: "TD Direct Investing - Personal RRSP", bank: "td_direct_investing", holdings },
+  ]).mappedItems;
+  const [connected] = mapSnapTradeAccountsToSpreadsheet([
+    { id: "a1", details: { institution_name: "TD Direct Investing", number: "Personal RRSP" } },
+  ]).mappedItems;
+  expect(uploaded).toEqual({ ...connected, holdings });
+  expect(uploaded.bank).toBe("TD");
+  expect(mapWorkspaceAccountsToSpreadsheet(null).mappedItems).toEqual([]);
+});
 
 test("maps SnapTrade positions to the canonical stored account without unused derived copies", () => {
   const source = [

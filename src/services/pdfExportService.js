@@ -41,18 +41,23 @@ const getCellValue = (row, columnName) => {
   return value == null ? "" : String(value);
 };
 
-const getColumnWidths = (availableWidth, columnCount) => {
-  if (!columnCount) {
+// The company name and the ownership sentence are text; every other column is a number.
+const COLUMN_WEIGHTS = { "Shares Owned": 0.9, "Ownership Share": 1.9 };
+const isNumericColumn = (column, columnIndex) =>
+  columnIndex > 0 && column?.name !== "Ownership Share";
+
+const getColumnWidths = (availableWidth, columns) => {
+  if (!columns.length) {
     return [];
   }
 
-  if (columnCount === 1) {
+  if (columns.length === 1) {
     return [availableWidth];
   }
 
-  const weights = new Array(columnCount).fill(1);
-  weights[0] = 1.7;
-  weights[1] = 1.3;
+  const weights = columns.map((column, index) =>
+    index === 0 ? 1.7 : COLUMN_WEIGHTS[column?.name] || 1
+  );
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
 
   return weights.map((weight) => (availableWidth * weight) / totalWeight);
@@ -176,7 +181,7 @@ const drawCanvasTableRows = (context, columns, rows, startX, startY, columnWidth
       const rawText = getCellValue(row, column.name);
       const text = truncateToCanvasWidth(context, rawText, columnWidths[columnIndex] - 8);
 
-      if (columnIndex > 1) {
+      if (isNumericColumn(column, columnIndex)) {
         const textWidth = context.measureText(text).width;
         const textX = Math.max(cursorX + 4, cursorX + columnWidths[columnIndex] - textWidth - 4);
         context.fillText(text, textX, currentY + 13);
@@ -210,7 +215,7 @@ const buildRasterizedPdfPages = ({
   const pagedRows = paginateRowsForPdf(rowsWithTotal, firstPageStartY, pageHeight);
   const startX = PAGE_MARGIN;
   const availableWidth = pageWidth - PAGE_MARGIN * 2;
-  const columnWidths = getColumnWidths(availableWidth, columns.length);
+  const columnWidths = getColumnWidths(availableWidth, columns);
 
   return pagedRows.map((pageRows, pageIndex) => {
     const { canvas, context } = createPdfCanvas(pageWidth, pageHeight);
@@ -305,7 +310,7 @@ const buildDocumentHtml = ({
       const isTotalRow = rowIndex === rowsWithTotal.length - 1;
       const cells = columns
         .map((column, columnIndex) => {
-          const alignClass = columnIndex > 1 ? "num" : "text";
+          const alignClass = isNumericColumn(column, columnIndex) ? "num" : "text";
           return `<td class="${alignClass}${isTotalRow ? " total-cell" : ""}">${escapeHtml(
             getCellValue(row, column.name)
           )}</td>`;

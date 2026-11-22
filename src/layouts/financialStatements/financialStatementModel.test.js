@@ -27,7 +27,8 @@ test("balance sheet uses each tag's latest non-null value and preserves money ro
     )
   ).toEqual({
     Company: "TEST (TEST)",
-    "Ownership Share": "1 in 1.00K",
+    "Shares Owned": "10",
+    "Ownership Share": "~ 1 in 1,000 shares",
     Assets: "$20",
     Equity: "$0",
     "Cash & Equivalents": "N/A",
@@ -35,7 +36,7 @@ test("balance sheet uses each tag's latest non-null value and preserves money ro
   });
 });
 
-test("income statement maps all report fields and uses millions for large ownership ratios", () => {
+test("income statement maps all report fields and writes large ownership ratios in full", () => {
   expect(
     createFinancialRow(
       holding,
@@ -50,13 +51,40 @@ test("income statement maps all report fields and uses millions for large owners
     )
   ).toEqual({
     Company: "TEST (TEST)",
-    "Ownership Share": "1 in 2.00M",
+    "Shares Owned": "10",
+    "Ownership Share": "~ 1 in 2,000,000 shares",
     Revenue: "$10",
     "Gross Profit": "$5",
     "Operating Profit": "$3",
     "Net Income": "$0",
   });
 });
+
+test.each([balanceSheet, incomeStatement])(
+  "both reports show shares owned and ownership share as separate columns with one rounding rule",
+  (report) => {
+    const outstanding = [financial("SharesOutstanding", 1_000_000)];
+    expect(report.columns.slice(0, 3).map(({ name }) => name)).toEqual([
+      "Company",
+      "Shares Owned",
+      "Ownership Share",
+    ]);
+    expect(createFinancialRow({ Symbol: "A", Quantity: "250" }, outstanding, report)).toMatchObject({
+      "Shares Owned": "250",
+      "Ownership Share": "~ 1 in 4,000 shares",
+    });
+    // A fractional holding is shown as a whole number but calculated on the exact quantity.
+    expect(createFinancialRow({ Symbol: "A", Quantity: "8.5" }, outstanding, report)).toMatchObject({
+      "Shares Owned": "9",
+      "Ownership Share": "~ 1 in 117,647 shares",
+    });
+    // Shares owned is known even when the company's data is not.
+    expect(createFinancialRow({ Symbol: "A", Quantity: "1250" }, null, report)).toMatchObject({
+      "Shares Owned": "1,250",
+      "Ownership Share": "N/A",
+    });
+  }
+);
 
 test.each([0, -1, null, "invalid"])(
   "invalid shares %s retain the holding with N/A fields",
@@ -67,7 +95,8 @@ test.each([0, -1, null, "invalid"])(
       balanceSheet
     );
     expect(row.Company).toBe("TEST (TEST)");
-    expect(Object.values(row).slice(1)).toEqual(Array(5).fill("N/A"));
+    expect(row["Shares Owned"]).toBe("10");
+    expect(Object.values(row).slice(2)).toEqual(Array(5).fill("N/A"));
   }
 );
 
@@ -83,7 +112,7 @@ test("account selection normalizes markets, excludes empty holdings, and prefers
       {
         Account: "Unsupported - 123",
         bank: "TD",
-        holdings: [{ Market: "TSX" }, { market: "tsx" }],
+        holdings: [{ Market: "LSE" }, { market: "lse" }],
       },
       { Account: "Supported - 456", bank: "RBC", holdings: [{ ...holding, Market: " nasdaq " }] },
       { Account: "Unknown market", holdings: [{ Symbol: "NONE" }] },
@@ -93,7 +122,7 @@ test("account selection normalizes markets, excludes empty holdings, and prefers
   expect(accounts).toHaveLength(3);
   expect(accounts[0]).toMatchObject({
     isAvailable: false,
-    disallowedMarkets: ["TSX"],
+    disallowedMarkets: ["LSE"],
     logo: "/logos/TD.png",
   });
   expect(accounts[1]).toMatchObject({
@@ -126,8 +155,50 @@ test("loading preserves holding order, skips invalid quantities, and reuses each
     getFinancials
   );
   expect(getFinancials).toHaveBeenCalledTimes(1);
-  expect(getFinancials).toHaveBeenCalledWith({ ticker: "TEST" });
+  expect(getFinancials).toHaveBeenCalledWith({ ticker: "TEST", exchange: "US" });
   expect(rows.map((row) => row.Assets)).toEqual(["$20", "$40", "N/A", "N/A", "N/A"]);
+});
+
+test("each account is its own report, even for the same ticker at the same institution and exchange", () => {
+  const accounts = getFinancialAccounts(
+    [
+      { Account: "Questrade - Personal TFSA", holdings: [{ Symbol: "RY", Quantity: "25", Market: "TSX" }] },
+      { Account: "Questrade - Spousal RRSP", holdings: [{ Symbol: "RY", Quantity: "10", Market: "TSX" }] },
+      { Account: "Questrade - TFSA - Joint", holdings: [{ Symbol: "RY", Quantity: "5", Market: "NASDAQ" }] },
+    ],
+    () => "/logo.png"
+  );
+  expect(accounts.map(({ accountNumber, isAvailable }) => [accountNumber, isAvailable])).toEqual([
+    ["Personal TFSA", true],
+    ["Spousal RRSP", true],
+    ["TFSA - Joint", true],
+  ]);
+  expect(getAccountHoldings(accounts, "Questrade - Spousal RRSP")).toEqual([
+    { Symbol: "RY", Quantity: "10", Market: "TSX" },
+  ]);
+});
+
+test("company data is requested for the holding's exchange, so a shared ticker is not mixed up", async () => {
+  const getFinancials = jest.fn(({ exchange }) =>
+    Promise.resolve(
+      exchange === "US" ? [financial("SharesOutstanding", 10000), financial("Assets", 20000)] : []
+    )
+  );
+  const rows = await loadFinancialRows(
+    [
+      { Symbol: "T", Quantity: "10", Market: "NYSE" },
+      { Symbol: "T", Quantity: "10", Market: "TSX" },
+      { Symbol: "T", Quantity: "10" },
+    ],
+    balanceSheet,
+    getFinancials
+  );
+  expect(getFinancials.mock.calls.map(([filter]) => filter)).toEqual([
+    { ticker: "T", exchange: "US" },
+    { ticker: "T", exchange: "TSX" },
+    { ticker: "T" },
+  ]);
+  expect(rows.map((row) => row.Assets)).toEqual(["$20", "N/A", "N/A"]);
 });
 
 test("a failed ticker produces an N/A row without discarding successful holdings", async () => {

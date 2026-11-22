@@ -1,5 +1,6 @@
 import { supabase } from "../supabaseClient";
 import { useAppStore } from "../stores/store";
+import { mapWorkspaceAccountsToSpreadsheet } from "./workspaceMappingService";
 
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
@@ -97,13 +98,13 @@ const workspaceService = {
   },
 };
 
-// Mirrors a workspace's saved accounts/holdings into the same store the
-// Balance Sheet / Income Statement already read, so server-persisted
-// Excel/brokerage holdings render through the existing report pipeline.
+// Stores a workspace's saved accounts in the same shape, and through the same
+// store action, as a brokerage connection (see SnapTradeRedirect), so both
+// sources produce their reports through one pipeline.
 export function applyWorkspaceAccountsToStore(accounts) {
   const { upsertAccount } = useAppStore.getState();
-  (accounts || []).forEach((account) => {
-    upsertAccount({ Account: account.Account, bank: account.bank, holdings: account.holdings });
+  mapWorkspaceAccountsToSpreadsheet(accounts).mappedItems.forEach((item) => {
+    upsertAccount({ Account: item.accountRaw, bank: item.bank, holdings: item.holdings });
   });
 }
 

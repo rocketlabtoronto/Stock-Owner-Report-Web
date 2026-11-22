@@ -1,4 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import PropTypes from "prop-types";
 import { AgGridReact } from "ag-grid-react";
 import Box from "@mui/material/Box";
@@ -21,12 +29,16 @@ const agGridOverrides = {
 const emptyList = [];
 const preferredOrder = [
   "Company",
+  "Shares Owned",
   "Ownership Share",
   "Assets",
   "Cash & Equivalents",
   "Liabilities",
   "Equity",
 ];
+// Columns that describe the holding rather than a prorated dollar amount: not totaled or sorted.
+const holdingColumns = new Set(["Company", "Shares Owned", "Ownership Share"]);
+const minWidthByColumn = { Company: 220, "Shares Owned": 130, "Ownership Share": 220 };
 
 function parseMoney(str) {
   // Parses strings like "$1,234" to 1234 (number)
@@ -35,21 +47,30 @@ function parseMoney(str) {
   return isNaN(num) ? 0 : num;
 }
 
-// Editable Number of Shares cell for an Upload Portfolio workspace's Edit
-// action. Edit/Save/Cancel state lives in ProRataTable and is read through
-// AgGridReact's context prop, which this component receives fresh each time
-// ProRataTable re-renders (see the editingHoldingId/savingHoldingId state).
-function SharesCellRenderer(params) {
+// Edit/Save/Cancel state lives in ProRataTable. The grid renders cells inside this React
+// tree, so the cell renderers read that state live through context.
+const EditStateContext = createContext(null);
+
+// Shares Owned is displayed as a whole number; editing it works on the exact saved quantity.
+function SharesOwnedCellRenderer(params) {
+  const edit = useContext(EditStateContext);
   const holding = params.data?.__holding;
-  const isEditing = holding?.id && params.context.editingHoldingId === holding.id;
-  if (!isEditing) return <span>{holding?.quantity ?? ""}</span>;
+  if (!holding?.id || edit?.editingHoldingId !== holding.id) {
+    return <span>{params.value}</span>;
+  }
   return (
     <input
       type="number"
       step="any"
       min="0"
+      aria-label="Number of Shares"
       defaultValue={holding.quantity}
-      onChange={(event) => params.context.setDraftQuantity(event.target.value)}
+      disabled={edit.savingHoldingId === holding.id}
+      onChange={(event) => edit.setDraftQuantity(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") edit.onSave(holding.id);
+        if (event.key === "Escape") edit.onCancel();
+      }}
       style={{ width: "85%", fontSize: 12.5 }}
       autoFocus
     />
@@ -57,10 +78,11 @@ function SharesCellRenderer(params) {
 }
 
 function ActionsCellRenderer(params) {
+  const edit = useContext(EditStateContext);
   const holding = params.data?.__holding;
-  if (!holding?.id || holding.source !== "excel_upload") return null;
-  const isEditing = params.context.editingHoldingId === holding.id;
-  const isSaving = params.context.savingHoldingId === holding.id;
+  if (!edit || !holding?.id || holding.source !== "excel_upload") return null;
+  const isEditing = edit.editingHoldingId === holding.id;
+  const isSaving = edit.savingHoldingId === holding.id;
   if (isEditing) {
     return (
       <Box sx={{ display: "flex", gap: 0.5 }}>
@@ -68,7 +90,7 @@ function ActionsCellRenderer(params) {
           size="small"
           variant="contained"
           disabled={isSaving}
-          onClick={() => params.context.onSave(holding.id)}
+          onClick={() => edit.onSave(holding.id)}
           sx={{ textTransform: "none", minWidth: 0, px: 1 }}
         >
           {isSaving ? <CircularProgress size={12} color="inherit" /> : "Save"}
@@ -76,7 +98,7 @@ function ActionsCellRenderer(params) {
         <Button
           size="small"
           disabled={isSaving}
-          onClick={params.context.onCancel}
+          onClick={edit.onCancel}
           sx={{ textTransform: "none", minWidth: 0, px: 1 }}
         >
           Cancel
@@ -87,7 +109,7 @@ function ActionsCellRenderer(params) {
   return (
     <Button
       size="small"
-      onClick={() => params.context.onEdit(holding.id, holding.quantity)}
+      onClick={() => edit.onEdit(holding.id, holding.quantity)}
       sx={{ textTransform: "none", minWidth: 0, px: 1 }}
     >
       Edit
@@ -134,22 +156,6 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
       }
     };
   }, [scheduleResize]);
-  // Format Ownership Share values: replace M/K, round to integer, add units
-  function formatOwnershipShare(value) {
-    if (typeof value !== "string") return value;
-    // Match patterns like '1 in 91.40M' or '1 in 30.90K'
-    const match = value.match(/(\d+) in ([\d,.]+)([MK])/i);
-    if (match) {
-      const prefix = match[1];
-      let num = parseFloat(match[2].replace(/,/g, ""));
-      const unit = match[3].toUpperCase();
-      if (unit === "M") num = Math.round(num);
-      if (unit === "K") num = Math.round(num);
-      let unitText = unit === "M" ? " million" : unit === "K" ? " thousand" : "";
-      return `~ ${prefix} in ${num.toLocaleString()}${unitText}`;
-    }
-    return value;
-  }
   const columns = Array.isArray(data?.columns) ? data.columns : emptyList;
   const rows = Array.isArray(data?.rows) ? data.rows : emptyList;
   const hasValidData = columns.length > 0 && Array.isArray(data?.rows);
@@ -167,8 +173,7 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
     () => orderedColumns
       .filter(
         (col) =>
-          col.name !== "Company" &&
-          col.name !== "Ownership Share" &&
+          !holdingColumns.has(col.name) &&
           rows.some((row) => typeof row[col.name] === "string" && row[col.name].startsWith("$"))
       )
       .map((col) => col.name),
@@ -180,13 +185,12 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
       headerName: col.name,
       field: col.name,
       headerTooltip: col.name,
-      sortable: col.name !== "Company" && col.name !== "Ownership Share",
+      sortable: !holdingColumns.has(col.name),
       filter: false,
       resizable: true,
-      minWidth:
-        col.name === "Company" ? 220 : col.name === "Ownership Share" ? 200 : 140,
-      lockPosition: col.name === "Company" || col.name === "Ownership Share",
-      suppressMovable: col.name === "Company" || col.name === "Ownership Share",
+      minWidth: minWidthByColumn[col.name] || 140,
+      lockPosition: holdingColumns.has(col.name),
+      suppressMovable: holdingColumns.has(col.name),
       suppressMenu: true,
       tooltipValueGetter: (params) => (params.value == null ? "" : String(params.value)),
       cellStyle: (params) => {
@@ -207,72 +211,44 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
     [orderedColumns, moneyColumnNames]
   );
 
-  // Extra columns shown only for an Upload Portfolio workspace: they keep the
-  // ticker, account, financial institution, and exchange visible while Number
-  // of Shares is being edited, per row, via Save/Cancel in the Actions column.
-  const editableColumnDefs = useMemo(() => {
-    if (!editable) return [];
-    const plainCellStyle = { fontSize: 12.5 };
+  // An Upload Portfolio report adds only the row's Edit action, which turns that row's Shares
+  // Owned cell into an input. Account, institution, and exchange stay row metadata.
+  const allColumnDefs = useMemo(() => {
+    if (!editable) return columnDefs;
+    const pinnedAwareStyle = (params) =>
+      params.node.rowPinned
+        ? { background: "#fff9c4", fontWeight: "bold", fontSize: 12.5 }
+        : { fontSize: 12.5 };
     return [
-      {
-        headerName: "Account",
-        colId: "accountName",
-        valueGetter: (params) => params.data?.__holding?.accountName ?? "",
-        minWidth: 150,
-        sortable: false,
-        filter: false,
-        suppressMenu: true,
-        cellStyle: plainCellStyle,
-      },
-      {
-        headerName: "Financial Institution",
-        colId: "financialInstitution",
-        valueGetter: (params) => params.data?.__holding?.financialInstitution ?? "",
-        minWidth: 170,
-        sortable: false,
-        filter: false,
-        suppressMenu: true,
-        cellStyle: plainCellStyle,
-      },
-      {
-        headerName: "Exchange",
-        colId: "exchange",
-        valueGetter: (params) => params.data?.__holding?.exchange ?? "",
-        minWidth: 110,
-        sortable: false,
-        filter: false,
-        suppressMenu: true,
-        cellStyle: plainCellStyle,
-      },
-      {
-        headerName: "Number of Shares",
-        colId: "numberOfShares",
-        cellRenderer: SharesCellRenderer,
-        minWidth: 140,
-        sortable: false,
-        filter: false,
-        suppressMenu: true,
-        cellStyle: plainCellStyle,
-      },
+      ...columnDefs.map((colDef) =>
+        colDef.field === "Shares Owned"
+          ? {
+              ...colDef,
+              cellRenderer: SharesOwnedCellRenderer,
+              // Keep typing and arrow keys inside the quantity input while a row is edited.
+              suppressKeyboardEvent: (params) => params.event?.target?.tagName === "INPUT",
+            }
+          : colDef
+      ),
       {
         headerName: "Actions",
         colId: "actions",
         cellRenderer: ActionsCellRenderer,
+        // Pinned so Edit/Save/Cancel stay in view when the table scrolls sideways.
+        pinned: "right",
+        width: 150,
         minWidth: 150,
+        resizable: false,
+        suppressMovable: true,
         sortable: false,
         filter: false,
         suppressMenu: true,
-        cellStyle: plainCellStyle,
+        cellStyle: pinnedAwareStyle,
       },
     ];
-  }, [editable]);
+  }, [columnDefs, editable]);
 
-  const allColumnDefs = useMemo(
-    () => [...columnDefs, ...editableColumnDefs],
-    [columnDefs, editableColumnDefs]
-  );
-
-  const gridContext = useMemo(
+  const editState = useMemo(
     () => ({
       editingHoldingId,
       savingHoldingId,
@@ -302,17 +278,16 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
     [editingHoldingId, savingHoldingId, draftQuantity, onSaveQuantity]
   );
 
-  // AgGridReact's React wrapper does not always re-run cell renderers on a
-  // context-only change, so force a redraw whenever the editing state moves.
+  // A pending edit belongs to the rows it was started on; drop it when the report changes.
   useEffect(() => {
-    gridApiRef.current?.refreshCells({ force: true });
-  }, [editingHoldingId, savingHoldingId]);
+    setEditingHoldingId(null);
+  }, [rows]);
 
-  // Calculate totals for all numeric columns except Company and Ownership Share
+  // Total the prorated dollar columns; the holding columns have no meaningful sum.
   const totalRow = useMemo(() => {
     const row = {};
     columns.forEach((col) => {
-      if (col.name === "Company" || col.name === "Ownership Share") {
+      if (holdingColumns.has(col.name)) {
         row[col.name] = col.name === "Company" ? "Total" : "";
       } else {
         row[col.name] = rows.reduce((sum, item) => sum + parseMoney(item[col.name]), 0);
@@ -328,19 +303,6 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
     return row;
   }, [columns, rows]);
 
-  // Map rows to format Ownership Share
-  const rowData = useMemo(
-    () => rows.map((row) => {
-      if (row["Ownership Share"]) {
-        return {
-          ...row,
-          "Ownership Share": formatOwnershipShare(row["Ownership Share"]),
-        };
-      }
-      return row;
-    }),
-    [rows]
-  );
   const pinnedBottomRowData = useMemo(() => [totalRow], [totalRow]);
 
   const shouldApplyPaywall = Boolean(paywall?.enabled);
@@ -400,11 +362,11 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
         className="ag-theme-alpine"
         style={{ flex: 1, minHeight: 0, width: "100%", height: "100%" }}
       >
+        <EditStateContext.Provider value={editState}>
         <AgGridReact
           domLayout="normal"
-          rowData={rowData}
+          rowData={rows}
           columnDefs={allColumnDefs}
-          context={gridContext}
           pagination={false}
           pinnedBottomRowData={pinnedBottomRowData}
           rowHeight={34}
@@ -437,6 +399,7 @@ function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
             cellStyle: { fontSize: 12.5 },
           }}
         />
+        </EditStateContext.Provider>
       </div>
     </Box>
   );

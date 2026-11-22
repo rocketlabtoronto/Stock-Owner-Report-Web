@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "stores/store";
+import { useReportAccountStore } from "stores/useReportAccountStore";
 import supabaseService from "services/supabaseService";
 import { logoFromBank } from "utils/brokerageLogos";
 import {
@@ -11,6 +12,8 @@ import {
 
 const emptyAccounts = [];
 
+// Account, financial institution, and exchange travel with each row as metadata. The table
+// uses them to identify the holding; they are not report columns.
 function buildHoldingMeta(allAccounts, holding) {
   const owningAccount = allAccounts.find((account) => account.holdings?.includes(holding));
   return {
@@ -25,7 +28,8 @@ function buildHoldingMeta(allAccounts, holding) {
 
 export default function useFinancialStatement(report) {
   const accounts = useAppStore((state) => state.accounts) || emptyAccounts;
-  const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const selectedAccountId = useReportAccountStore((state) => state.selectedAccountId);
+  const setSelectedAccountId = useReportAccountStore((state) => state.selectAccount);
   const [result, setResult] = useState({ loading: true, rows: [] });
   const allAccountsWithLogos = useMemo(
     () => getFinancialAccounts(accounts, logoFromBank),

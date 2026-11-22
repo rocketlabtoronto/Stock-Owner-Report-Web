@@ -1,7 +1,7 @@
 const createReport = (title, fields, explanation, fontSize) => ({
   title,
   fields,
-  columns: ["Company", "Ownership Share", ...Object.keys(fields)].map((name) => ({
+  columns: ["Company", "Shares Owned", "Ownership Share", ...Object.keys(fields)].map((name) => ({
     name,
     align: name === "Company" ? "left" : "right",
   })),

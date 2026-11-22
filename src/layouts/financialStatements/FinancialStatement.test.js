@@ -95,7 +95,7 @@ test("account selection enables supported accounts and disables unsupported acco
     accountNumber: "456",
     logo: "/logo.png",
     isAvailable: false,
-    disallowedMarkets: ["TSX"],
+    disallowedMarkets: ["LSE"],
   });
   render(<FinancialStatement report={balanceSheet} />);
   fireEvent.click(screen.getByTitle("Broker #123"));

@@ -54,11 +54,12 @@ const supabaseService = {
     );
   },
 
-  async getStockPrices({ symbol }) {
+  async getStockPrices({ symbol, exchange }) {
+    const exchangeFilter = exchange ? `&exchange=eq.${encodeURIComponent(exchange)}` : "";
     return fetchJson(
       `${SUPABASE_URL}/rest/v1/stock_prices?symbol=eq.${encodeURIComponent(
         symbol
-      )}&order=latest_day.desc,inserted_at.desc`,
+      )}${exchangeFilter}&order=latest_day.desc,inserted_at.desc`,
       { method: "GET", headers },
       "Supabase error"
     );
