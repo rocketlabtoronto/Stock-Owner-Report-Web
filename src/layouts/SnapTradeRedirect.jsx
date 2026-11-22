@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "stores/useAuthStore";
 import { useAppStore } from "stores/store";
+import { useWorkspaceStore } from "stores/useWorkspaceStore";
 import { supabase } from "../supabaseClient";
 import { mapSnapTradeAccountsToSpreadsheet } from "services/snaptradeMappingService";
+import workspaceService from "services/workspaceService";
 import Backdrop from "@mui/material/Backdrop";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -56,6 +58,7 @@ export default function SnapTradeRedirect() {
 
   const upsertAccount = useAppStore((state) => state.upsertAccount);
   const setSnapTradeLastConnectedAt = useAppStore((state) => state.setSnapTradeLastConnectedAt);
+  const workspace = useWorkspaceStore((state) => state.workspace);
 
   useEffect(() => {
     async function load() {
@@ -89,6 +92,16 @@ export default function SnapTradeRedirect() {
           upsertAccount({ Account: item.accountRaw, bank: item.bank, holdings: item.holdings });
         });
 
+        if (workspace?.workspace_type === "connect_brokerage") {
+          try {
+            await workspaceService.saveBrokerageConnection(workspace.id, mappedItems);
+          } catch (persistError) {
+            // Local SnapTrade sync already succeeded; keep showing it even if
+            // the server-side workspace save fails (e.g. transient network issue).
+            console.error("Failed to save brokerage connection to workspace:", persistError);
+          }
+        }
+
         setSnapTradeLastConnectedAt(new Date().toISOString());
 
         setStatus("success");
@@ -113,6 +126,7 @@ export default function SnapTradeRedirect() {
     userSecret,
     upsertAccount,
     setSnapTradeLastConnectedAt,
+    workspace,
     navigate,
   ]);
 

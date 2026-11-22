@@ -8,11 +8,13 @@ import Footer from "ui/Footer";
 import theme from "assets/theme";
 import routes from "routes";
 import { useCustomController } from "context";
+import useWorkspaceBootstrap from "stores/useWorkspaceBootstrap";
 
 export default function App() {
   const [controller] = useCustomController();
   const { miniSidenav } = controller;
   const { pathname } = useLocation();
+  useWorkspaceBootstrap();
   useEffect(() => {
     document.documentElement.scrollTop = 0;
     document.scrollingElement.scrollTop = 0;

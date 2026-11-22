@@ -1,6 +1,8 @@
 import SecurityDataPanel from "./SecurityDataPanel";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "stores/store";
+import { useWorkspaceStore } from "stores/useWorkspaceStore";
 import { groupBrokerageAccounts } from "./accountModel";
 import useAccountBalances from "./useAccountBalances";
 import Accordion from "@mui/material/Accordion";
@@ -24,6 +26,9 @@ import AddBrokerageDialog from "./AddBrokerageDialog";
 import ConsentModal from "./ConsentModal";
 import SecurityDetailsModal from "./SecurityDetailsModal";
 import { bankLogoMap } from "utils/brokerageLogos";
+import SignInModal from "./workspace/SignInModal";
+import UploadPortfolioDialog from "./workspace/UploadPortfolioDialog";
+import { ACTION_TO_WORKSPACE_TYPE, setPendingWorkspaceAction } from "./workspace/workspaceActions";
 
 const CONSENT_STORAGE_KEY = "brokerage_consent";
 
@@ -31,15 +36,54 @@ export default function BrokeragesAndAccounts() {
   const accounts = useAppStore((state) => state.accounts);
   const snapTradeLastConnectedAt = useAppStore((state) => state.snapTradeLastConnectedAt);
   const handleUnlinkBrokerage = useAppStore((state) => state.unlinkBrokerage);
+  const workspace = useWorkspaceStore((state) => state.workspace);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [open, setOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const [securityDetailsOpen, setSecurityDetailsOpen] = useState(false);
   const [snapTradeSuccess, setSnapTradeSuccess] = useState(false);
+  const [signInAction, setSignInAction] = useState(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [workspaceMessage, setWorkspaceMessage] = useState("");
   const { balances: calculatedBalances, loading: balancesLoading } = useAccountBalances(accounts);
 
   // Opens the consent gate; after acceptance, opens AddBrokerageDialog
   const handleOpen = () => setConsentOpen(true);
+
+  // Both entry points require sign-in and a matching workspace type before
+  // starting their own workflow (Upload Portfolio modal, or the existing
+  // SnapTrade/manual-CSV Connect a Brokerage flow).
+  const openForAction = (action) => {
+    setWorkspaceMessage("");
+    const requiredType = ACTION_TO_WORKSPACE_TYPE[action];
+    if (workspace) {
+      if (workspace.workspace_type !== requiredType) {
+        setWorkspaceMessage(
+          workspace.workspace_type === "upload_portfolio"
+            ? "Your workspace is set up for Upload Portfolio. Connect a Brokerage isn't available here."
+            : "Your workspace is set up for Connect a Brokerage. Upload Portfolio isn't available here."
+        );
+        return;
+      }
+      if (action === "upload") setUploadDialogOpen(true);
+      else handleOpen();
+      return;
+    }
+    setPendingWorkspaceAction(action);
+    setSignInAction(action);
+  };
+
+  useEffect(() => {
+    const continueAction = location.state?.continueAction;
+    if (continueAction && workspace) {
+      openForAction(continueAction);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, workspace]);
+
   const handleConsentAccept = (record) => {
     try {
       localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record));
@@ -300,7 +344,7 @@ export default function BrokeragesAndAccounts() {
               >
                 <Button
                   variant="contained"
-                  onClick={handleOpen}
+                  onClick={() => openForAction("brokerage")}
                   sx={{
                     backgroundColor: "#0d1b2a",
                     color: "#fff",
@@ -320,6 +364,30 @@ export default function BrokeragesAndAccounts() {
                 >
                   Connect a Brokerage
                 </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => openForAction("upload")}
+                  sx={{
+                    backgroundColor: "#fff",
+                    color: "#0d1b2a",
+                    borderColor: "#0d1b2a",
+                    fontWeight: 600,
+                    px: 4,
+                    py: 1.3,
+                    fontSize: 13,
+                    borderRadius: 0,
+                    textTransform: "uppercase",
+                    letterSpacing: 1.5,
+                    boxShadow: "none",
+                    "&:hover": {
+                      backgroundColor: "#f9fafb",
+                      borderColor: "#0d1b2a",
+                      boxShadow: "none",
+                    },
+                  }}
+                >
+                  Upload a Portfolio
+                </Button>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Box sx={{ width: "1px", height: 22, backgroundColor: "#d6d9de" }} />
                   <Typography sx={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
@@ -327,6 +395,13 @@ export default function BrokeragesAndAccounts() {
                   </Typography>
                 </Box>
               </Box>
+              {workspaceMessage && (
+                <Box sx={{ px: { xs: 4, md: 6 }, py: 1.5, backgroundColor: "#fef2f2" }}>
+                  <Typography sx={{ fontSize: 12.5, color: "#b91c1c" }}>
+                    {workspaceMessage}
+                  </Typography>
+                </Box>
+              )}
 
               {/* ── Supported institutions ── */}
               <Box sx={{ px: { xs: 4, md: 6 }, py: 3 }}>
@@ -661,6 +736,19 @@ export default function BrokeragesAndAccounts() {
           <Typography color="success.main">SnapTrade connection successful!</Typography>
         </Box>
       )}
+      {signInAction && (
+        <SignInModal
+          open={Boolean(signInAction)}
+          onClose={() => setSignInAction(null)}
+          pendingAction={signInAction}
+        />
+      )}
+      <UploadPortfolioDialog
+        open={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        workspace={workspace}
+        onImported={() => setUploadDialogOpen(false)}
+      />
     </DashboardLayout>
   );
 }

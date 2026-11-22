@@ -11,6 +11,18 @@ import {
 
 const emptyAccounts = [];
 
+function buildHoldingMeta(allAccounts, holding) {
+  const owningAccount = allAccounts.find((account) => account.holdings?.includes(holding));
+  return {
+    id: holding?.workspaceHoldingId || null,
+    source: holding?.source || null,
+    quantity: holding?.Quantity ?? "",
+    accountName: owningAccount?.accountNumber || "",
+    financialInstitution: owningAccount?.brokerageName || "",
+    exchange: holding?.Market || "",
+  };
+}
+
 export default function useFinancialStatement(report) {
   const accounts = useAppStore((state) => state.accounts) || emptyAccounts;
   const [selectedAccountId, setSelectedAccountId] = useState(null);
@@ -27,13 +39,18 @@ export default function useFinancialStatement(report) {
   useEffect(() => {
     let active = true;
     setResult({ loading: true, rows: [] });
-    loadFinancialRows(
-      getAccountHoldings(allAccountsWithLogos, activeAccountId),
-      report,
-      supabaseService.getFinancials
-    )
+    const holdings = getAccountHoldings(allAccountsWithLogos, activeAccountId);
+    loadFinancialRows(holdings, report, supabaseService.getFinancials)
       .then((rows) => {
-        if (active) setResult({ loading: false, rows });
+        if (!active) return;
+        // __holding carries the identity/account context ProRataTable needs for
+        // the Upload Portfolio Edit action; it is additive and unrelated to the
+        // report's own columns.
+        const rowsWithHoldingMeta = rows.map((row, index) => ({
+          ...row,
+          __holding: buildHoldingMeta(allAccountsWithLogos, holdings[index]),
+        }));
+        setResult({ loading: false, rows: rowsWithHoldingMeta });
       })
       .catch((error) => {
         console.error(`Failed to load ${report.title.toLowerCase()}:`, error);

@@ -49,3 +49,21 @@ export async function readTextSafe(response: Response) {
     return "";
   }
 }
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://www.stockownerreport.com",
+];
+
+// Shared default origin allowlist (browser app origins) plus any extra origins
+// configured per-project via the ALLOWED_ORIGINS secret, comma separated.
+export function parseAllowedOrigins(envValue: string | undefined | null): Set<string> {
+  const configured = (envValue ?? "")
+    .split(",")
+    .map((value) => value.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+  return new Set([...DEFAULT_ALLOWED_ORIGINS, ...configured]);
+}

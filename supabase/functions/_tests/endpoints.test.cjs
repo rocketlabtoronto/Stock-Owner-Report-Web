@@ -351,3 +351,185 @@ test("authenticate-user verifies credentials against public.users via the servic
   assert.equal(expiredBody.subscriptionExpired, true);
   assert.ok(expiredBody.expiresAt);
 });
+
+// Minimal chainable Supabase mock covering the select/eq/in/insert/update/upsert
+// surface the workspace endpoints use, keyed by table name so each test can
+// seed exactly the rows it needs.
+function fakeWorkspaceClient({ user, data = {} }) {
+  function builder(table, rows) {
+    let filtered = Array.isArray(rows) ? [...rows] : [];
+    const self = {
+      select: () => self,
+      eq: (column, value) => {
+        filtered = filtered.filter((row) => String(row[column]) === String(value));
+        return self;
+      },
+      in: (column, values) => {
+        filtered = filtered.filter((row) => values.includes(row[column]));
+        return self;
+      },
+      ilike: (column, value) => {
+        filtered = filtered.filter(
+          (row) => String(row[column]).toLowerCase() === String(value).toLowerCase()
+        );
+        return self;
+      },
+      order: () => self,
+      limit: () => self,
+      maybeSingle: async () => ({ data: filtered[0] ?? null, error: null }),
+      single: async () =>
+        filtered[0]
+          ? { data: filtered[0], error: null }
+          : { data: null, error: { message: "not found" } },
+      insert: (value) => {
+        const row = { id: `new-${table}-id`, ...value };
+        (data[table] ||= []).push(row);
+        return builder(table, [row]);
+      },
+      update: (value) => {
+        const updated = filtered.map((row) => ({ ...row, ...value }));
+        data[table] = (data[table] || []).map((row) =>
+          updated.find((u) => u.id === row.id) || row
+        );
+        return builder(table, updated);
+      },
+      upsert: (value) => builder(table, Array.isArray(value) ? value : [value]),
+    };
+    return self;
+  }
+  return {
+    auth: {
+      getUser: async (token) =>
+        token === "valid-token" && user ? { data: { user }, error: null } : { data: null, error: new Error("invalid") },
+    },
+    from: (table) => builder(table, data[table]),
+  };
+}
+
+function authedRequest(method, body) {
+  return new Request("https://functions.example.test", {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    headers: { authorization: "Bearer valid-token", "content-type": "application/json" },
+  });
+}
+
+test("workspace endpoints reject disallowed origins and preserve preflight policies", async () => {
+  for (const name of [
+    "resolve-workspace",
+    "create-workspace",
+    "get-reference-data",
+    "validate-portfolio-upload",
+    "import-portfolio",
+    "get-workspace-holdings",
+    "update-holding-quantity",
+    "save-brokerage-connection",
+  ]) {
+    const handler = loadEndpoint(name, { createClient: () => fakeWorkspaceClient({}) });
+    const preflight = await handler(
+      new Request("https://functions.example.test", {
+        method: "OPTIONS",
+        headers: { origin: "https://attacker.test" },
+      })
+    );
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), null);
+  }
+});
+
+test("workspace endpoints require a signed-in Supabase Auth session", async () => {
+  const handler = loadEndpoint("resolve-workspace", {
+    createClient: () => fakeWorkspaceClient({}),
+  });
+  const response = await handler(new Request("https://functions.example.test", { method: "GET" }));
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: "Not signed in" });
+});
+
+test("resolve-workspace returns the existing workspace for a returning email regardless of provider", async () => {
+  const user = { id: "u1", email: "owner@example.test", app_metadata: { provider: "azure" } };
+  const handler = loadEndpoint("resolve-workspace", {
+    createClient: () =>
+      fakeWorkspaceClient({
+        user,
+        data: {
+          workspaces: [
+            {
+              id: "ws-1",
+              email: "owner@example.test",
+              workspace_type: "upload_portfolio",
+              auth_provider: "google",
+            },
+          ],
+        },
+      }),
+  });
+  const response = await handler(authedRequest("GET"));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.workspace.id, "ws-1");
+  assert.equal(body.workspace.workspace_type, "upload_portfolio");
+  assert.equal(body.provider, "azure");
+});
+
+test("create-workspace is idempotent per email and rejects an invalid workspace type", async () => {
+  const user = { id: "u1", email: "new@example.test", app_metadata: { provider: "google" } };
+  const makeClient = (data) => fakeWorkspaceClient({ user, data });
+
+  const invalid = await loadEndpoint("create-workspace", { createClient: () => makeClient({}) })(
+    authedRequest("POST", { workspaceType: "not_a_real_type" })
+  );
+  assert.equal(invalid.status, 400);
+
+  const data = {};
+  const client = makeClient(data);
+  const handler = loadEndpoint("create-workspace", { createClient: () => client });
+  const created = await handler(authedRequest("POST", { workspaceType: "upload_portfolio" }));
+  assert.equal(created.status, 201);
+  const createdBody = await created.json();
+  assert.equal(createdBody.created, true);
+  assert.equal(createdBody.workspace.workspace_type, "upload_portfolio");
+
+  const again = await handler(authedRequest("POST", { workspaceType: "connect_brokerage" }));
+  assert.equal(again.status, 200);
+  const againBody = await again.json();
+  assert.equal(againBody.created, false);
+  assert.equal(againBody.workspace.workspace_type, "upload_portfolio");
+});
+
+test("update-holding-quantity only allows editing the caller's own Excel-imported holdings", async () => {
+  const user = { id: "u1", email: "owner@example.test", app_metadata: { provider: "google" } };
+  const baseData = {
+    workspaces: [{ id: "ws-1", email: "owner@example.test", workspace_type: "upload_portfolio" }],
+    workspace_holdings: [
+      { id: "holding-1", workspace_id: "ws-1", account_id: "acct-1", exchange_code: "TSX", ticker: "RY", quantity: 25, source: "excel_upload" },
+      { id: "holding-2", workspace_id: "ws-1", account_id: "acct-1", exchange_code: "TSX", ticker: "TD", quantity: 10, source: "brokerage_connection" },
+    ],
+  };
+
+  const handler = loadEndpoint("update-holding-quantity", {
+    createClient: () => fakeWorkspaceClient({ user, data: baseData }),
+  });
+
+  const ok = await handler(
+    authedRequest("POST", { workspaceId: "ws-1", holdingId: "holding-1", quantity: 40 })
+  );
+  assert.equal(ok.status, 200);
+  const okBody = await ok.json();
+  assert.equal(okBody.holding.Quantity, "40");
+
+  const readOnly = await handler(
+    authedRequest("POST", { workspaceId: "ws-1", holdingId: "holding-2", quantity: 99 })
+  );
+  assert.equal(readOnly.status, 400);
+
+  const otherWorkspace = await handler(
+    authedRequest("POST", { workspaceId: "ws-other", holdingId: "holding-1", quantity: 5 })
+  );
+  assert.equal(otherWorkspace.status, 403);
+
+  const invalidQuantity = await handler(
+    authedRequest("POST", { workspaceId: "ws-1", holdingId: "holding-1", quantity: -1 })
+  );
+  assert.equal(invalidQuantity.status, 400);
+});

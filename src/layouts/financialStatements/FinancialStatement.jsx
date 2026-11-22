@@ -7,6 +7,9 @@ import CustomTypography from "components/CustomTypography";
 import DashboardLayout from "ui/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "ui/Navbars/DashboardNavbar";
 import { useAuthStore } from "stores/useAuthStore";
+import { useAppStore } from "stores/store";
+import { useWorkspaceStore } from "stores/useWorkspaceStore";
+import workspaceService from "services/workspaceService";
 import {
   exportFinancialReportToHtml,
   exportFinancialReportToPdf,
@@ -27,6 +30,7 @@ export default function FinancialStatement({ report }) {
   const { loading, aggregatedData, allAccountsWithLogos, selectedAccount, selectAccount } =
     useFinancialStatement(report);
   const user = useAuthStore((state) => state.user);
+  const workspace = useWorkspaceStore((state) => state.workspace);
   const hasRows = aggregatedData.rows.length > 0;
   const closeExportMenu = () => setExportAnchor(null);
   const exportReport = (exporter) => {
@@ -41,6 +45,15 @@ export default function FinancialStatement({ report }) {
       ...aggregatedData,
     });
     closeExportMenu();
+  };
+
+  // Only an Upload Portfolio workspace's own holdings can be edited; both
+  // reports share the same saved holding record (useAppStore), so a save here
+  // is reflected immediately on whichever report the user switches to next.
+  const canEditShares = workspace?.workspace_type === "upload_portfolio";
+  const handleSaveQuantity = async (holdingId, quantity) => {
+    const result = await workspaceService.updateHoldingQuantity(workspace.id, holdingId, quantity);
+    useAppStore.getState().updateHoldingQuantity(holdingId, result.holding.Quantity);
   };
 
   return (
@@ -156,6 +169,8 @@ export default function FinancialStatement({ report }) {
               loading={loading}
               data={aggregatedData}
               paywall={{ enabled: hasRows && !user?.email, registerPath: "/billing" }}
+              editable={canEditShares}
+              onSaveQuantity={handleSaveQuantity}
             />
           </Box>
         </Card>

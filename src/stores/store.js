@@ -134,6 +134,21 @@ export const useAppStore = create(
             accounts,
           };
         }),
+
+      // Mirrors a server-saved share-count edit (Balance Sheet / Income
+      // Statement Edit action) into the shared holdings so both reports and
+      // portfolio totals recompute immediately.
+      updateHoldingQuantity: (workspaceHoldingId, quantity) =>
+        set((state) => ({
+          accounts: asArray(state.accounts).map((account) => ({
+            ...account,
+            holdings: asArray(account.holdings).map((holding) =>
+              holding.workspaceHoldingId === workspaceHoldingId
+                ? { ...holding, Quantity: String(quantity) }
+                : holding
+            ),
+          })),
+        })),
     }),
     {
       name: "app-storage",

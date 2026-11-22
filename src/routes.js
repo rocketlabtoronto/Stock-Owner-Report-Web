@@ -21,6 +21,7 @@ const routes = [
   route("SnapTrade Redirect", "snapTradeRedirect", "/snapTradeRedirect", () =>
     import("layouts/SnapTradeRedirect")
   ),
+  route("Auth Callback", "authCallback", "/auth/callback", () => import("layouts/AuthCallback")),
   route(
     "Brokerages and Accounts",
     "dashboard",

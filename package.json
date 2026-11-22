@@ -31,6 +31,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.3",
     "react-scripts": "5.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zustand": "^5.0.6"
   },
   "scripts": {
@@ -56,6 +57,7 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/react": "14.0.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "ajv": "^8.17.1",
@@ -66,9 +68,8 @@
     "eslint-plugin-react-hooks": "4.6.0",
     "eslint-plugin-unused-imports": "3.2.0",
     "prettier": "2.8.8",
-    "typescript": "^5.8.3",
-    "@testing-library/react": "14.0.0",
-    "supabase": "^2.74.5"
+    "supabase": "^2.74.5",
+    "typescript": "^5.8.3"
   },
   "overrides": {
     "svgo": "3.0.2"

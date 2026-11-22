@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { AgGridReact } from "ag-grid-react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -34,10 +35,74 @@ function parseMoney(str) {
   return isNaN(num) ? 0 : num;
 }
 
-function ProRataTable({ loading, data, paywall }) {
+// Editable Number of Shares cell for an Upload Portfolio workspace's Edit
+// action. Edit/Save/Cancel state lives in ProRataTable and is read through
+// AgGridReact's context prop, which this component receives fresh each time
+// ProRataTable re-renders (see the editingHoldingId/savingHoldingId state).
+function SharesCellRenderer(params) {
+  const holding = params.data?.__holding;
+  const isEditing = holding?.id && params.context.editingHoldingId === holding.id;
+  if (!isEditing) return <span>{holding?.quantity ?? ""}</span>;
+  return (
+    <input
+      type="number"
+      step="any"
+      min="0"
+      defaultValue={holding.quantity}
+      onChange={(event) => params.context.setDraftQuantity(event.target.value)}
+      style={{ width: "85%", fontSize: 12.5 }}
+      autoFocus
+    />
+  );
+}
+
+function ActionsCellRenderer(params) {
+  const holding = params.data?.__holding;
+  if (!holding?.id || holding.source !== "excel_upload") return null;
+  const isEditing = params.context.editingHoldingId === holding.id;
+  const isSaving = params.context.savingHoldingId === holding.id;
+  if (isEditing) {
+    return (
+      <Box sx={{ display: "flex", gap: 0.5 }}>
+        <Button
+          size="small"
+          variant="contained"
+          disabled={isSaving}
+          onClick={() => params.context.onSave(holding.id)}
+          sx={{ textTransform: "none", minWidth: 0, px: 1 }}
+        >
+          {isSaving ? <CircularProgress size={12} color="inherit" /> : "Save"}
+        </Button>
+        <Button
+          size="small"
+          disabled={isSaving}
+          onClick={params.context.onCancel}
+          sx={{ textTransform: "none", minWidth: 0, px: 1 }}
+        >
+          Cancel
+        </Button>
+      </Box>
+    );
+  }
+  return (
+    <Button
+      size="small"
+      onClick={() => params.context.onEdit(holding.id, holding.quantity)}
+      sx={{ textTransform: "none", minWidth: 0, px: 1 }}
+    >
+      Edit
+    </Button>
+  );
+}
+
+function ProRataTable({ loading, data, paywall, editable, onSaveQuantity }) {
   const gridApiRef = useRef(null);
   const columnApiRef = useRef(null);
   const resizeTimeoutRef = useRef(null);
+  const [editingHoldingId, setEditingHoldingId] = useState(null);
+  const [savingHoldingId, setSavingHoldingId] = useState(null);
+  const [draftQuantity, setDraftQuantity] = useState("");
+  const [editError, setEditError] = useState("");
   const autoSizeAllColumns = useCallback(() => {
     if (!columnApiRef.current) return;
     const allColumns = columnApiRef.current.getAllColumns() || [];
@@ -142,6 +207,107 @@ function ProRataTable({ loading, data, paywall }) {
     [orderedColumns, moneyColumnNames]
   );
 
+  // Extra columns shown only for an Upload Portfolio workspace: they keep the
+  // ticker, account, financial institution, and exchange visible while Number
+  // of Shares is being edited, per row, via Save/Cancel in the Actions column.
+  const editableColumnDefs = useMemo(() => {
+    if (!editable) return [];
+    const plainCellStyle = { fontSize: 12.5 };
+    return [
+      {
+        headerName: "Account",
+        colId: "accountName",
+        valueGetter: (params) => params.data?.__holding?.accountName ?? "",
+        minWidth: 150,
+        sortable: false,
+        filter: false,
+        suppressMenu: true,
+        cellStyle: plainCellStyle,
+      },
+      {
+        headerName: "Financial Institution",
+        colId: "financialInstitution",
+        valueGetter: (params) => params.data?.__holding?.financialInstitution ?? "",
+        minWidth: 170,
+        sortable: false,
+        filter: false,
+        suppressMenu: true,
+        cellStyle: plainCellStyle,
+      },
+      {
+        headerName: "Exchange",
+        colId: "exchange",
+        valueGetter: (params) => params.data?.__holding?.exchange ?? "",
+        minWidth: 110,
+        sortable: false,
+        filter: false,
+        suppressMenu: true,
+        cellStyle: plainCellStyle,
+      },
+      {
+        headerName: "Number of Shares",
+        colId: "numberOfShares",
+        cellRenderer: SharesCellRenderer,
+        minWidth: 140,
+        sortable: false,
+        filter: false,
+        suppressMenu: true,
+        cellStyle: plainCellStyle,
+      },
+      {
+        headerName: "Actions",
+        colId: "actions",
+        cellRenderer: ActionsCellRenderer,
+        minWidth: 150,
+        sortable: false,
+        filter: false,
+        suppressMenu: true,
+        cellStyle: plainCellStyle,
+      },
+    ];
+  }, [editable]);
+
+  const allColumnDefs = useMemo(
+    () => [...columnDefs, ...editableColumnDefs],
+    [columnDefs, editableColumnDefs]
+  );
+
+  const gridContext = useMemo(
+    () => ({
+      editingHoldingId,
+      savingHoldingId,
+      setDraftQuantity,
+      onEdit: (holdingId, quantity) => {
+        setEditError("");
+        setEditingHoldingId(holdingId);
+        setDraftQuantity(String(quantity ?? ""));
+      },
+      onCancel: () => {
+        setEditError("");
+        setEditingHoldingId(null);
+      },
+      onSave: async (holdingId) => {
+        setSavingHoldingId(holdingId);
+        setEditError("");
+        try {
+          await onSaveQuantity(holdingId, draftQuantity);
+          setEditingHoldingId(null);
+        } catch (error) {
+          setEditError(error?.message || "Could not save the new quantity.");
+        } finally {
+          setSavingHoldingId(null);
+        }
+      },
+    }),
+    [editingHoldingId, savingHoldingId, draftQuantity, onSaveQuantity]
+  );
+
+  // AgGridReact's React wrapper does not always re-run cell renderers on a
+  // context-only change, so force a redraw whenever the editing state moves.
+  useEffect(() => {
+    gridApiRef.current?.refreshCells({ force: true });
+  }, [editingHoldingId, savingHoldingId]);
+
   // Calculate totals for all numeric columns except Company and Ownership Share
   const totalRow = useMemo(() => {
     const row = {};
@@ -224,6 +390,12 @@ function ProRataTable({ loading, data, paywall }) {
         </Box>
       )}
 
+      {editError && (
+        <Typography variant="caption" sx={{ color: "#b91c1c", mb: 1, flexShrink: 0 }}>
+          {editError}
+        </Typography>
+      )}
+
       <div
         className="ag-theme-alpine"
         style={{ flex: 1, minHeight: 0, width: "100%", height: "100%" }}
@@ -231,7 +403,8 @@ function ProRataTable({ loading, data, paywall }) {
         <AgGridReact
           domLayout="normal"
           rowData={rowData}
-          columnDefs={columnDefs}
+          columnDefs={allColumnDefs}
+          context={gridContext}
           pagination={false}
           pinnedBottomRowData={pinnedBottomRowData}
           rowHeight={34}
@@ -284,6 +457,13 @@ ProRataTable.propTypes = {
     enabled: PropTypes.bool,
     registerPath: PropTypes.string,
   }),
+  editable: PropTypes.bool,
+  onSaveQuantity: PropTypes.func,
+};
+
+ProRataTable.defaultProps = {
+  editable: false,
+  onSaveQuantity: () => Promise.resolve(),
 };
 
 export default ProRataTable;

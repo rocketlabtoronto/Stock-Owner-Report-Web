@@ -9,7 +9,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+// Workspace sign-in (Google/Microsoft/LinkedIn) uses Supabase Auth directly, so
+// the session must persist and the OAuth redirect must be parsed from the URL.
+// This is additive: the pre-existing subscription login (useAuthStore,
+// authenticate-user Edge Function) does not read this session and is unaffected.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   db: { schema: "dashboard" },
-  auth: { persistSession: false },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });

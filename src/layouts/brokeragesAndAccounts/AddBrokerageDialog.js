@@ -11,6 +11,8 @@ import Typography from "@mui/material/Typography";
 import PropTypes from "prop-types";
 import { parseBrokerageCsv } from "services/parseBrokerageCsvService";
 import { useAppStore } from "../../stores/store";
+import { useWorkspaceStore } from "../../stores/useWorkspaceStore";
+import workspaceService from "services/workspaceService";
 import { SNAPTRADE_BROKER_ALLOWLIST } from "services/snaptradeBrokerAllowlistService";
 import { inferBankFromName } from "services/snaptradeMappingService";
 
@@ -24,6 +26,7 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
   const [snapTradeBrokerSlug, setSnapTradeBrokerSlug] = useState("");
   const [snapTradeError, setSnapTradeError] = useState("");
   const [snapTradeLoading, setSnapTradeLoading] = useState(false);
+  const workspace = useWorkspaceStore((state) => state.workspace);
 
   // Read global flag to disable SnapTrade integrations
   // CRA exposes only REACT_APP_* env vars to the client.
@@ -48,6 +51,14 @@ export default function AddBrokerageDialog({ open, onClose, onSnapTradeSuccess }
 
     // Persist on the element itself
     useAppStore.getState().upsertAccount({ Account: accountRaw, bank, holdings });
+
+    if (workspace?.workspace_type === "connect_brokerage") {
+      workspaceService
+        .saveBrokerageConnection(workspace.id, [{ accountRaw, bank, holdings }])
+        .catch((error) => {
+          console.error("Failed to save manual brokerage upload to workspace:", error);
+        });
+    }
   };
 
   // For manual upload modal, handle upload

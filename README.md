@@ -20,6 +20,8 @@ Environment files are ignored. All `REACT_APP_*` values are public browser confi
 
 Commit [package-lock.json](package-lock.json) when dependencies change. [.npmrc](.npmrc) preserves CRA 5's required legacy peer resolution; the explicit AJV 8 development dependency keeps its Webpack validators compatible.
 
+`xlsx` (SheetJS, used for the Upload Portfolio template/parsing) is installed from the SheetJS CDN tarball, not the npm registry: the public registry's last published version (0.18.5) predates fixes for known prototype-pollution/ReDoS issues. Upgrade by changing the pinned tarball URL in `package.json`'s `dependencies`, e.g. `https://cdn.sheetjs.com/xlsx-<version>/xlsx-<version>.tgz`, and re-run `npm install`.
+
 ## Checks
 
 ```bash
@@ -50,6 +52,8 @@ npx supabase functions serve
 ```
 
 For hosted functions, set integration secrets in the Supabase Dashboard. Supabase injects its URL and service-role key at runtime. Set `APP_BASE_URL` to the correct environment for password emails.
+
+Workspace sign-in (Upload a Portfolio / Connect a Brokerage) needs Google, Microsoft (`azure`), and LinkedIn (`linkedin_oidc`) enabled under Authentication → Providers in the Supabase Dashboard, for both Dev and Prod, each with a real client ID/secret from that provider's developer console. Each provider's OAuth app must allow-list that project's own `https://<project-ref>.supabase.co/auth/v1/callback`; separately, add `<APP_BASE_URL>/auth/callback` to Supabase's Authentication → URL Configuration → Redirect URLs for each environment. See [architecture.md](docs/architecture.md#workspaces-sign-in-excel-upload-and-brokerage-connections) for the full walkthrough. This cannot be configured from code or migrations.
 
 ```bash
 npx supabase login
