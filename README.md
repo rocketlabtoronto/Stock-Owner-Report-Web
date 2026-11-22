@@ -55,6 +55,18 @@ npx supabase link --project-ref <project_ref>
 npx supabase functions deploy <function-name>
 ```
 
-Preserve applied [database migrations](supabase/migrations/). See [architecture.md](docs/architecture.md) for application behavior and integration contracts.
+## Database
+
+The schema is defined only by [supabase/migrations](supabase/migrations/). Prod is the reference; Dev and local are built from the same migrations and must stay identical to Prod. Change the schema by adding a migration, never in the Supabase dashboard, and add a new migration instead of editing one that has been applied. Keep migrations idempotent and free of credentials, connection strings and foreign servers, because each environment keeps its own.
+
+```bash
+npx supabase db reset                        # rebuild the local database (Docker required)
+npx supabase link --project-ref <dev_ref>
+npx supabase db push                         # apply to Dev and verify first
+npx supabase link --project-ref <prod_ref>
+npx supabase db push                         # then apply to Prod
+```
+
+See [architecture.md](docs/architecture.md) for application behavior and integration contracts.
 
 Contact: howard@stockownerreport.com. The UI originated from a Creative Tim template; the existing license reference remains in [package.json](package.json).
