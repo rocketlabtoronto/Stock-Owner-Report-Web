@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
-import { Snaptrade } from "npm:snaptrade-typescript-sdk";
+import { Snaptrade } from "npm:snaptrade-typescript-sdk@9.0.191";
 import { createStructuredLogger } from "../_shared/logging.ts";
 import { createJsonResponder, parseBody, snaptradeCorsHeaders } from "../_shared/http.ts";
 

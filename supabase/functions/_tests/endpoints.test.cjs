@@ -41,7 +41,7 @@ function loadEndpoint(name, options = {}) {
             handler = callback;
           },
         };
-      if (specifier === "npm:snaptrade-typescript-sdk")
+      if (specifier.startsWith("npm:snaptrade-typescript-sdk"))
         return {
           Snaptrade: class {
             constructor() {

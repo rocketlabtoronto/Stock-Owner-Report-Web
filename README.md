@@ -34,7 +34,7 @@ Edge Functions run in Deno. VS Code enables Deno only for [supabase/functions](s
 deno check --config supabase/functions/deno.json supabase/functions/login-user/index.ts
 ```
 
-The existing unpinned SnapTrade SDK imports have type incompatibilities with SDK 13.2.6. Deno checking currently reports errors; resolve compatibility and pin the SDK before deploying affected functions. Mocked Node tests do not detect upstream SDK changes.
+SnapTrade SDK imports are pinned to the version Prod was built with (`npm:snaptrade-typescript-sdk@9.0.191`). Do not return to an unpinned import: SDK 13.x changed the `Snaptrade` constructor and fails with `Cannot read properties of undefined (reading 'mode')`. Upgrade deliberately, test against Dev, and change all five SDK-using functions together. Mocked Node tests do not detect upstream SDK changes.
 
 ## Deployment
 

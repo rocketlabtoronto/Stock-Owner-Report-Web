@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Snaptrade } from "npm:snaptrade-typescript-sdk";
+import { Snaptrade } from "npm:snaptrade-typescript-sdk@9.0.191";
 import { createStructuredLogger } from "../_shared/logging.ts";
 import {
   createCorsHeaders,
