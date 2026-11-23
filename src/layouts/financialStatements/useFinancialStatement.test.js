@@ -61,6 +61,19 @@ test("a slow previous account cannot replace the selected account's financial re
   expect(result.current.aggregatedData.rows[0].Company).toBe("SECOND (SECOND)");
 });
 
+test("reload fetches the selected account's figures again after a failed load", async () => {
+  supabaseService.getFinancials.mockRejectedValueOnce(new Error("unreachable")).mockResolvedValue([]);
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  const { result } = renderHook(() => useFinancialStatement(balanceSheet));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.aggregatedData.rows[0].__loadFailed).toBe(true);
+
+  act(() => result.current.reload());
+  await waitFor(() => expect(result.current.aggregatedData.rows[0]?.__loadFailed).toBeUndefined());
+  expect(supabaseService.getFinancials).toHaveBeenCalledTimes(2);
+  console.error.mockRestore();
+});
+
 test("removing a selected account falls back to an available account and empty portfolios finish loading", async () => {
   supabaseService.getFinancials.mockResolvedValue([]);
   const { result, rerender } = renderHook(() => useFinancialStatement(balanceSheet));

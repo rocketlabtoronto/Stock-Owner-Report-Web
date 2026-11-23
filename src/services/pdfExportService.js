@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { buildTotalRows } from "utils/reportCurrency";
 
 const NAVY = [13, 27, 42];
 const BODY = [31, 41, 55];
@@ -41,10 +42,11 @@ const getCellValue = (row, columnName) => {
   return value == null ? "" : String(value);
 };
 
-// The company name and the ownership sentence are text; every other column is a number.
-const COLUMN_WEIGHTS = { "Shares Owned": 0.9, "Ownership Share": 1.9 };
+// The company name, ownership sentence and currency code are text; other columns are numbers.
+const TEXT_COLUMNS = new Set(["Ownership Share", "Currency"]);
+const COLUMN_WEIGHTS = { "Shares Owned": 0.9, "Ownership Share": 1.9, Currency: 0.7 };
 const isNumericColumn = (column, columnIndex) =>
-  columnIndex > 0 && column?.name !== "Ownership Share";
+  columnIndex > 0 && !TEXT_COLUMNS.has(column?.name);
 
 const getColumnWidths = (availableWidth, columns) => {
   if (!columns.length) {
@@ -169,8 +171,8 @@ const drawCanvasTableHeader = (context, columns, startX, startY, columnWidths) =
 const drawCanvasTableRows = (context, columns, rows, startX, startY, columnWidths) => {
   let currentY = startY + HEADER_ROW_HEIGHT + 2;
 
-  rows.forEach((row, rowIndex) => {
-    const isTotalRow = rowIndex === rows.length - 1;
+  rows.forEach((row) => {
+    const isTotalRow = Boolean(row?.__total);
     context.fillStyle = rgb(BODY);
     context.font = `${
       isTotalRow ? "bold" : "normal"
@@ -231,65 +233,15 @@ const buildRasterizedPdfPages = ({
   });
 };
 
-const parseCurrencyValue = (value) => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  if (!value.includes("$") || !/\d/.test(value)) {
-    return null;
-  }
-
-  const normalized = value.replace(/[$,\s]/g, "").replace(/\((.*)\)/, "-$1");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const formatCurrency = (value) => {
-  const sign = value < 0 ? "-" : "";
-  return `${sign}$${Math.abs(value).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-};
-
+// Appends one total row per currency, matching the on-screen report.
 const addTotalRow = (columns = [], rows = []) => {
   if (!Array.isArray(columns) || !columns.length || !Array.isArray(rows) || !rows.length) {
     return Array.isArray(rows) ? rows : [];
   }
-
-  const firstColumnName = columns[0]?.name;
-  const lastRowFirstCell = rows[rows.length - 1]?.[firstColumnName];
-  if (
-    String(lastRowFirstCell || "")
-      .trim()
-      .toLowerCase() === "total"
-  ) {
+  if (rows.some((row) => row?.__total)) {
     return rows;
   }
-
-  const totalRow = {};
-  if (firstColumnName) {
-    totalRow[firstColumnName] = "Total";
-  }
-
-  columns.slice(1).forEach((column) => {
-    let sum = 0;
-    let hasValue = false;
-
-    rows.forEach((row) => {
-      const parsed = parseCurrencyValue(row?.[column.name]);
-      if (parsed !== null) {
-        sum += parsed;
-        hasValue = true;
-      }
-    });
-
-    totalRow[column.name] = hasValue ? formatCurrency(sum) : "";
-  });
-
-  return [...rows, totalRow];
+  return [...rows, ...buildTotalRows(columns, rows)];
 };
 
 const buildDocumentHtml = ({
@@ -306,8 +258,8 @@ const buildDocumentHtml = ({
     .join("");
 
   const bodyRows = rowsWithTotal
-    .map((row, rowIndex) => {
-      const isTotalRow = rowIndex === rowsWithTotal.length - 1;
+    .map((row) => {
+      const isTotalRow = Boolean(row?.__total);
       const cells = columns
         .map((column, columnIndex) => {
           const alignClass = isNumericColumn(column, columnIndex) ? "num" : "text";

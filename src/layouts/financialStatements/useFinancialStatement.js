@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppStore } from "stores/store";
 import { useReportAccountStore } from "stores/useReportAccountStore";
 import supabaseService from "services/supabaseService";
+import atlantisService from "services/atlantisService";
 import { logoFromBank } from "utils/brokerageLogos";
 import {
   getAccountHoldings,
@@ -11,6 +12,12 @@ import {
 } from "./financialStatementModel";
 
 const emptyAccounts = [];
+
+// TSX issuers come from Atlantis on demand; U.S. listings keep reading dashboard.financials.
+const getCompanyFinancials = (filter) =>
+  filter.exchange === "TSX"
+    ? atlantisService.getFinancials(filter)
+    : supabaseService.getFinancials(filter);
 
 // Account, financial institution, and exchange travel with each row as metadata. The table
 // uses them to identify the holding; they are not report columns.
@@ -31,6 +38,7 @@ export default function useFinancialStatement(report) {
   const selectedAccountId = useReportAccountStore((state) => state.selectedAccountId);
   const setSelectedAccountId = useReportAccountStore((state) => state.selectAccount);
   const [result, setResult] = useState({ loading: true, rows: [] });
+  const [reloadCount, setReloadCount] = useState(0);
   const allAccountsWithLogos = useMemo(
     () => getFinancialAccounts(accounts, logoFromBank),
     [accounts]
@@ -44,7 +52,7 @@ export default function useFinancialStatement(report) {
     let active = true;
     setResult({ loading: true, rows: [] });
     const holdings = getAccountHoldings(allAccountsWithLogos, activeAccountId);
-    loadFinancialRows(holdings, report, supabaseService.getFinancials)
+    loadFinancialRows(holdings, report, getCompanyFinancials)
       .then((rows) => {
         if (!active) return;
         // __holding carries the identity/account context ProRataTable needs for
@@ -64,7 +72,7 @@ export default function useFinancialStatement(report) {
     return () => {
       active = false;
     };
-  }, [allAccountsWithLogos, activeAccountId, report]);
+  }, [allAccountsWithLogos, activeAccountId, report, reloadCount]);
 
   return {
     loading: result.loading,
@@ -72,5 +80,6 @@ export default function useFinancialStatement(report) {
     allAccountsWithLogos,
     selectedAccount,
     selectAccount: setSelectedAccountId,
+    reload: useCallback(() => setReloadCount((count) => count + 1), []),
   };
 }

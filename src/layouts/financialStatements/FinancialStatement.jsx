@@ -27,7 +27,7 @@ const exporters = {
 
 export default function FinancialStatement({ report }) {
   const [exportAnchor, setExportAnchor] = useState(null);
-  const { loading, aggregatedData, allAccountsWithLogos, selectedAccount, selectAccount } =
+  const { loading, aggregatedData, allAccountsWithLogos, selectedAccount, selectAccount, reload } =
     useFinancialStatement(report);
   const user = useAuthStore((state) => state.user);
   const workspace = useWorkspaceStore((state) => state.workspace);
@@ -171,6 +171,7 @@ export default function FinancialStatement({ report }) {
               paywall={{ enabled: hasRows && !user?.email, registerPath: "/billing" }}
               editable={canEditShares}
               onSaveQuantity={handleSaveQuantity}
+              onRetry={reload}
             />
           </Box>
         </Card>

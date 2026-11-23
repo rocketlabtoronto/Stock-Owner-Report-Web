@@ -1,7 +1,9 @@
+import { HOLDING_COLUMNS } from "utils/reportCurrency";
+
 const createReport = (title, fields, explanation, fontSize) => ({
   title,
   fields,
-  columns: ["Company", "Shares Owned", "Ownership Share", ...Object.keys(fields)].map((name) => ({
+  columns: [...HOLDING_COLUMNS, ...Object.keys(fields)].map((name) => ({
     name,
     align: name === "Company" ? "left" : "right",
   })),

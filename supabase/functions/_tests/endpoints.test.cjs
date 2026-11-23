@@ -533,3 +533,98 @@ test("update-holding-quantity only allows editing the caller's own Excel-importe
   );
   assert.equal(invalidQuantity.status, 400);
 });
+
+function atlantisRequest(query) {
+  return new Request(`https://functions.example.test/atlantis-financials${query}`);
+}
+
+function fakeAtlantis(responses) {
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push({ url: String(url), headers: init?.headers ?? {} });
+    const { status = 200, body = {}, headers = {} } = responses[calls.length - 1] ?? {};
+    return new Response(JSON.stringify(body), { status, headers });
+  };
+  return { fetch, calls };
+}
+
+test("atlantis-financials returns the latest annual statements and keeps the API key server-side", async () => {
+  const { fetch, calls } = fakeAtlantis([
+    {
+      body: {
+        name: "Royal Bank Of Canada",
+        currency: "CAD",
+        periods: [
+          { period_type: "annual", period_end: "2024-10-31", fiscal_year: 2024, values: { total_assets: 1 } },
+          { period_type: "interim", period_end: "2026-01-31", fiscal_year: 2026, values: { total_assets: 3 } },
+          {
+            period_type: "annual",
+            period_end: "2025-10-31",
+            fiscal_year: 2025,
+            currency: "CAD",
+            values: { total_assets: 2, gross_profit: null, interest_income: 9, market_cap: 100, share_price: 4, pe_ratio: 12 },
+          },
+        ],
+      },
+    },
+  ]);
+  const handler = loadEndpoint("atlantis-financials", { fetch, env: { ATLANTIS_API_KEY: "secret-key" } });
+
+  const response = await handler(atlantisRequest("?ticker=ry"));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(calls[0].url, "https://atlantisdatasolutions.com/v1/ca/company/RY.TO/ratios?period=annual");
+  assert.equal(calls[0].headers["X-API-Key"], "secret-key");
+  assert.equal(JSON.stringify(body).includes("secret-key"), false);
+  assert.deepEqual(
+    { available: body.available, ticker: body.ticker, currency: body.currency, periodEnd: body.periodEnd },
+    { available: true, ticker: "RY", currency: "CAD", periodEnd: "2025-10-31" }
+  );
+  assert.equal(body.values.total_assets, 2);
+  assert.equal(body.values.gross_profit, null);
+  assert.equal(body.values.revenue, null);
+  assert.equal(body.values.market_cap, 100);
+  assert.equal(body.values.interest_income, 9);
+  assert.equal("pe_ratio" in body.values, false);
+});
+
+test("atlantis-financials resolves class shares and aliased issuers, and reports gaps without failing", async () => {
+  const { fetch, calls } = fakeAtlantis([
+    { status: 404, body: { error: "not found" } },
+    { body: { name: "Canadian National Railway", currency: "CAD", periods: [] } },
+    { body: { name: "Some Other Company", periods: [{ period_type: "annual", period_end: "2025-12-31" }] } },
+    { status: 429, headers: { "Retry-After": "120" } },
+    { status: 500 },
+  ]);
+  const handler = loadEndpoint("atlantis-financials", { fetch });
+
+  const notCovered = await handler(atlantisRequest("?ticker=GIB.A&period=annual"));
+  assert.equal(calls[0].url.includes("/company/GIB-A.TO/"), true);
+  assert.equal("X-API-Key" in calls[0].headers, false);
+  assert.equal(notCovered.status, 200);
+  assert.deepEqual(await notCovered.json(), {
+    available: false,
+    reason: "not_covered",
+    ticker: "GIB.A",
+    period: "annual",
+  });
+
+  const noAnnual = await handler(atlantisRequest("?ticker=CNR"));
+  assert.equal(calls[1].url.includes("/company/3SU7BEP7TH9YEQOZCS77/"), true);
+  assert.equal((await noAnnual.json()).reason, "no_annual_period");
+
+  // An alias that resolves to a different company must not be reported under this ticker.
+  const mismatch = await handler(atlantisRequest("?ticker=T"));
+  assert.equal((await mismatch.json()).available, false);
+
+  const limited = await handler(atlantisRequest("?ticker=TD"));
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get("Retry-After"), "120");
+  assert.equal((await handler(atlantisRequest("?ticker=TD"))).status, 502);
+
+  for (const query of ["", "?ticker=../admin", "?ticker=RY&period=interim"]) {
+    assert.equal((await handler(atlantisRequest(query))).status, 400);
+  }
+  assert.equal(calls.length, 5);
+  assert.equal((await handler(request("POST", {}))).status, 405);
+});

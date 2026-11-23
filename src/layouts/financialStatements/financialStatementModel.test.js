@@ -1,3 +1,9 @@
+import {
+  buildTotalRows,
+  describeReportCurrencies,
+  describeUnavailableHoldings,
+  isUnavailableRow,
+} from "utils/reportCurrency";
 import { balanceSheet, incomeStatement } from "./reports";
 import {
   createFinancialRow,
@@ -29,6 +35,7 @@ test("balance sheet uses each tag's latest non-null value and preserves money ro
     Company: "TEST (TEST)",
     "Shares Owned": "10",
     "Ownership Share": "~ 1 in 1,000 shares",
+    Currency: "USD",
     Assets: "$20",
     Equity: "$0",
     "Cash & Equivalents": "N/A",
@@ -53,6 +60,7 @@ test("income statement maps all report fields and writes large ownership ratios 
     Company: "TEST (TEST)",
     "Shares Owned": "10",
     "Ownership Share": "~ 1 in 2,000,000 shares",
+    Currency: "USD",
     Revenue: "$10",
     "Gross Profit": "$5",
     "Operating Profit": "$3",
@@ -96,9 +104,75 @@ test.each([0, -1, null, "invalid"])(
     );
     expect(row.Company).toBe("TEST (TEST)");
     expect(row["Shares Owned"]).toBe("10");
-    expect(Object.values(row).slice(2)).toEqual(Array(5).fill("N/A"));
+    const { Company, "Shares Owned": sharesOwned, Currency, ...figures } = row;
+    expect(Object.values(figures)).toEqual(Array(5).fill("N/A"));
   }
 );
+
+test("TSX rows use the issuer's own currency and name, per account, from one shared request", async () => {
+  const getFinancials = jest.fn(({ ticker, exchange }) => {
+    if (exchange !== "TSX") return Promise.resolve([financial("SharesOutstanding", 1000), financial("Assets", 5000)]);
+    if (ticker === "NONE") return Promise.resolve({ financials: [] });
+    return Promise.resolve({
+      currency: "CAD",
+      companyName: "Royal Bank Of Canada",
+      // No cash figure from the provider: that one field is unavailable, the rest still render.
+      financials: [financial("SharesOutstanding", 1000), financial("Assets", 40000), financial("Equity", 8000)],
+    });
+  });
+  const tsx = (Symbol, Quantity) => ({ Symbol, Quantity, Market: "TSX" });
+  const rows = await loadFinancialRows(
+    [tsx("RY", "25"), tsx("RY", "10"), tsx("NONE", "5"), { Symbol: "US", Quantity: "100", Market: "NYSE" }],
+    balanceSheet,
+    getFinancials
+  );
+  expect(getFinancials).toHaveBeenCalledTimes(3);
+  expect(rows.map((row) => [row.Company, row.Currency, row.Assets, row["Cash & Equivalents"]])).toEqual([
+    ["Royal Bank Of Canada (RY)", "CAD", "CA$1,000", "N/A"],
+    ["Royal Bank Of Canada (RY)", "CAD", "CA$400", "N/A"],
+    ["NONE (NONE)", "N/A", "N/A", "N/A"],
+    ["US (US)", "USD", "$500", "N/A"],
+  ]);
+  expect(rows[0]["Ownership Share"]).toBe("~ 1 in 40 shares");
+  expect(rows[2]["Shares Owned"]).toBe("5");
+  // A bank is flagged on its row (not as a column) so the table can explain its missing lines.
+  const [bankRow] = await loadFinancialRows([tsx("RY", "1")], incomeStatement, () =>
+    Promise.resolve({ currency: "CAD", isBank: true, financials: [financial("SharesOutstanding", 10), financial("Revenue", 100)] })
+  );
+  expect([bankRow.__bank, bankRow["Gross Profit"], bankRow.Revenue]).toEqual([true, "N/A", "CA$10"]);
+  expect(rows.some((row) => "__bank" in row)).toBe(false);
+
+  // Canadian and U.S. dollar amounts are totaled separately and the note names both.
+  expect(buildTotalRows(balanceSheet.columns, rows).map((total) => [total.Company, total.Assets, total.Equity])).toEqual([
+    ["Total (CAD)", "CA$1,400", "CA$280"],
+    ["Total (USD)", "$500", ""],
+  ]);
+  expect(describeReportCurrencies(rows)).toMatch(/Canadian dollars \(CAD\) and U\.S\. dollars \(USD\)/);
+  expect(describeReportCurrencies(rows.slice(0, 2))).toBe("All amounts are in Canadian dollars (CAD).");
+  expect(describeReportCurrencies(rows.slice(2, 3))).toBe("");
+
+  // Only a holding with no figure at all is called out; one missing line (cash here) is not.
+  expect(rows.map((row) => isUnavailableRow(balanceSheet.columns, row))).toEqual([false, false, true, false]);
+  expect(describeUnavailableHoldings(balanceSheet.columns, rows)).toMatch(/^Company figures are not available for 1 of 4 holdings in this account\./);
+  expect(describeUnavailableHoldings(balanceSheet.columns, rows.slice(0, 2))).toBe("");
+});
+
+test("figures that fail to load are reported as a failure, not as a holding without statements", async () => {
+  const getFinancials = jest.fn(({ ticker }) =>
+    ticker === "DOWN" ? Promise.reject(new Error("429")) : Promise.resolve([financial("SharesOutstanding", 1000), financial("Assets", 5000)])
+  );
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  const rows = await loadFinancialRows(
+    [{ Symbol: "DOWN", Quantity: "5", Market: "TSX" }, { Symbol: "OK", Quantity: "5", Market: "NYSE" }],
+    balanceSheet,
+    getFinancials
+  );
+  console.error.mockRestore();
+  expect(rows.map((row) => [row.Assets, Boolean(row.__loadFailed)])).toEqual([["N/A", true], ["$25", false]]);
+  expect(describeUnavailableHoldings(balanceSheet.columns, rows)).toBe(
+    "Figures for 1 of 2 holdings in this account could not be loaded just now. Reload the page to try again."
+  );
+});
 
 test.each([[], null, undefined])("missing financial data retains an N/A row", (financials) => {
   expect(createFinancialRow(holding, financials, incomeStatement).Revenue).toBe("N/A");

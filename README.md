@@ -53,6 +53,8 @@ npx supabase functions serve
 
 For hosted functions, set integration secrets in the Supabase Dashboard. Supabase injects its URL and service-role key at runtime. Set `APP_BASE_URL` to the correct environment for password emails.
 
+TSX company figures come from Atlantis Data Solutions through the `atlantis-financials` function. Set the `ATLANTIS_API_KEY` function secret in Dev and Prod; without it the function still works, on Atlantis's keyless limit of 100 requests per hour. See [architecture.md](docs/architecture.md#tsx-financial-statements-atlantis-data-solutions).
+
 Workspace sign-in (Upload a Portfolio / Connect a Brokerage) needs Google, Microsoft (`azure`), and LinkedIn (`linkedin_oidc`) enabled under Authentication → Providers in the Supabase Dashboard, for both Dev and Prod, each with a real client ID/secret from that provider's developer console. Each provider's OAuth app must allow-list that project's own `https://<project-ref>.supabase.co/auth/v1/callback`; separately, add `<APP_BASE_URL>/auth/callback` to Supabase's Authentication → URL Configuration → Redirect URLs for each environment. See [architecture.md](docs/architecture.md#workspaces-sign-in-excel-upload-and-brokerage-connections) for the full walkthrough. This cannot be configured from code or migrations.
 
 ```bash

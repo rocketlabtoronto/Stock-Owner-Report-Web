@@ -1,10 +1,8 @@
 import { dataExchangeOf, splitAccountLabel, unsupportedMarketsOf } from "utils/portfolioSchema";
+import { UNAVAILABLE, formatMoney } from "utils/reportCurrency";
 
-const usdFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
+// dashboard.financials holds U.S. listings, which report in U.S. dollars.
+const US_DATA_CURRENCY = "USD";
 
 export function getFinancialAccounts(accounts, getLogo) {
   return (Array.isArray(accounts) ? accounts : [])
@@ -35,21 +33,27 @@ export function getAccountHoldings(accounts, selectedAccountId) {
     : accounts.filter((account) => account.isAvailable).flatMap((account) => account.holdings);
 }
 
-function formatMoney(value) {
-  if (value === null || isNaN(value)) return "N/A";
-  const rounded = Math.round(value);
-  return usdFormatter.format(Object.is(rounded, -0) ? 0 : rounded);
-}
-
 const wholeNumberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export function createFinancialRow({ Symbol, Quantity }, financials, report) {
+// `source` says what the financials are denominated in and, when known, the company's name
+// and whether it reports the way a bank does.
+export function createFinancialRow(
+  { Symbol, Quantity },
+  financials,
+  report,
+  source = { currency: US_DATA_CURRENCY }
+) {
+  const { currency, companyName, isBank } = source;
   const quantity = parseFloat(Quantity);
-  const row = Object.fromEntries(report.columns.map(({ name }) => [name, "N/A"]));
-  row.Company = `${Symbol} (${Symbol})`;
+  const row = Object.fromEntries(report.columns.map(({ name }) => [name, UNAVAILABLE]));
+  // Row metadata, not a column: lets the table explain a bank's missing profit lines.
+  if (isBank) row.__bank = true;
+  row.Company = `${companyName || Symbol} (${Symbol})`;
   if (isNaN(quantity) || quantity <= 0) return row;
   row["Shares Owned"] = wholeNumberFormatter.format(quantity);
-  if (!Array.isArray(financials)) return row;
+  // Amounts cannot be shown truthfully without knowing their currency.
+  if (!Array.isArray(financials) || !currency) return row;
+  row.Currency = currency;
 
   // Each reported tag uses its latest non-null fiscal-year value independently.
   const requiredTags = new Set(["SharesOutstanding", ...Object.values(report.fields)]);
@@ -68,10 +72,15 @@ export function createFinancialRow({ Symbol, Quantity }, financials, report) {
   const sharesPerShareOwned = Math.max(1, Math.round(shares / quantity));
   row["Ownership Share"] = `~ 1 in ${wholeNumberFormatter.format(sharesPerShareOwned)} shares`;
   for (const [name, tag] of Object.entries(report.fields)) {
-    row[name] = formatMoney((Number(tags[tag]?.value) / shares) * quantity);
+    row[name] = formatMoney((Number(tags[tag]?.value) / shares) * quantity, currency);
   }
   return row;
 }
+
+// U.S. data arrives as a plain list of financials. Other sources return
+// { financials, currency, companyName } so the row is labelled with its own currency.
+const toCompanyData = (result) =>
+  Array.isArray(result) ? { financials: result, currency: US_DATA_CURRENCY } : result || {};
 
 export async function loadFinancialRows(holdings, report, getFinancials) {
   const requests = new Map();
@@ -91,10 +100,14 @@ export async function loadFinancialRows(holdings, report, getFinancials) {
             Promise.resolve().then(() => getFinancials(filter))
           );
         }
-        return createFinancialRow(holding, await requests.get(requestKey), report);
+        const { financials, currency, companyName, isBank } = toCompanyData(
+          await requests.get(requestKey)
+        );
+        return createFinancialRow(holding, financials, report, { currency, companyName, isBank });
       } catch (error) {
         console.error(`Error loading financials for ${holding.Symbol}:`, error);
-        return createFinancialRow(holding, null, report);
+        // Marked so the report can say the figures failed to load rather than do not exist.
+        return { ...createFinancialRow(holding, null, report), __loadFailed: true };
       }
     })
   );
