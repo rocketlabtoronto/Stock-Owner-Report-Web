@@ -44,6 +44,20 @@ Prod and Dev run the same function code. Deploy to Dev first, then Prod, with `n
 
 Set production browser variables in the host or an ignored `.env.production.local`, then run `npm run build`. Deploy the generated `build/` directory. Serve static files directly and rewrite dashboard routes to `/index.html` for direct links and refreshes.
 
+### Dev site (Vercel)
+
+`https://stock-owner-report-dev.vercel.app` is a separate Vercel project, `stock-owner-report-dev`, built with the Dev Supabase browser settings. It is not connected to Git, so pushes to `main` never touch it; deploy it from your working copy:
+
+```powershell
+$env:VERCEL_ORG_ID = "team_FZmQZW70k5ThFCT2Dw6rGz8q"
+$env:VERCEL_PROJECT_ID = "prj_tfjpHxpQhJ8rEyFkco5UZphbVgR0"
+npx vercel deploy --prod
+```
+
+The project's Production variables hold the Dev `REACT_APP_*` values. [middleware.js](middleware.js) protects the site with HTTP Basic auth when `BASIC_AUTH_ENABLED=true`, using the `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` project variables (the password is a Sensitive variable). Change them under the project's Settings → Environment Variables, then redeploy. Without `BASIC_AUTH_ENABLED` (the Prod project) the middleware only passes requests through.
+
+Its origin is in the Dev project's `ALLOWED_ORIGINS` function secret, and `https://stock-owner-report-dev.vercel.app/auth/callback` must be in Dev's Authentication → URL Configuration → Redirect URLs for workspace sign-in to return here.
+
 For local Edge Functions, copy [supabase/functions/.env.example](supabase/functions/.env.example) to `supabase/functions/.env`. With Docker running:
 
 ```bash
