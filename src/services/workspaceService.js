@@ -54,7 +54,10 @@ const workspaceService = {
   signInWithProvider(providerKey, redirectTo) {
     const provider = WORKSPACE_PROVIDERS[providerKey];
     if (!provider) throw new Error(`Unsupported sign-in provider: ${providerKey}`);
-    return supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+    return supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo, ...(provider === "azure" ? { scopes: "email" } : {}) },
+    });
   },
 
   getSession() {
