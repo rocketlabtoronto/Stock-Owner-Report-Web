@@ -38,6 +38,10 @@ export function groupBrokerageAccounts(accounts = [], balances = {}) {
       brokerageLogo: logoFromBank(item.bank),
       accountType: "Account",
       accountNumber,
+      // Workspace uploads carry a source. Untagged accounts come from Connect a Brokerage.
+      source: holdings.some((holding) => holding.source === "excel_upload")
+        ? "excel_upload"
+        : "brokerage_connection",
       equitiesValue,
       holdings,
       validHoldingsCount: holdings.filter(isValidHolding).length,

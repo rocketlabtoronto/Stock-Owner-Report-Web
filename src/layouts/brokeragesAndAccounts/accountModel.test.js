@@ -31,6 +31,20 @@ test("market availability requires every holding to be supported", () => {
   expect(groups[0].accounts[1].disallowedMarkets).toEqual(["LSE"]);
 });
 
+test("identifies uploaded, brokerage-connected, and browser-cached accounts per row", () => {
+  const [brokerage] = groupBrokerageAccounts([
+    account([holding(), holding({ source: "excel_upload" })], "Fidelity - Uploaded"),
+    account([holding({ source: "brokerage_connection" })], "Fidelity - Connected"),
+    account([holding()], "Fidelity - Cached"),
+  ]);
+
+  expect(brokerage.accounts.map(({ accountNumber, source }) => [accountNumber, source])).toEqual([
+    ["Uploaded", "excel_upload"],
+    ["Connected", "brokerage_connection"],
+    ["Cached", "brokerage_connection"],
+  ]);
+});
+
 test("accounts that share an institution stay separate when their names contain a separator", () => {
   const groups = groupBrokerageAccounts([
     account([holding()], "Questrade - TFSA - Personal"),

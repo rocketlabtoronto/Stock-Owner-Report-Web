@@ -9,6 +9,7 @@ import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import Checkbox from "@mui/material/Checkbox";
+import Chip from "@mui/material/Chip";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
@@ -17,6 +18,8 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Divider from "@mui/material/Divider";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
+import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
 import Button from "@mui/material/Button";
 import CustomBox from "components/CustomBox";
@@ -593,6 +596,7 @@ export default function BrokeragesAndAccounts() {
                       <List sx={{ py: 0 }}>
                         {brokerage.accounts.map((account) => {
                           const isAvailable = account.isAvailable !== false;
+                          const isPortfolioUpload = account.source === "excel_upload";
                           const marketMessage = isAvailable
                             ? `Supported by The Stock Owner Report (${SUPPORTED_MARKETS.join("/")})`
                             : `Unsupported market: ${
@@ -612,7 +616,7 @@ export default function BrokeragesAndAccounts() {
                                 borderColor: "divider",
                                 mb: 0.2,
                                 px: 0.75,
-                                py: 0.12,
+                                py: 0.5,
                                 minHeight: 0,
                               }}
                             >
@@ -624,13 +628,52 @@ export default function BrokeragesAndAccounts() {
                                 sx={{ mr: 0.35, p: 0.5 }}
                               />
                               <ListItemText
-                                primary={`${account.accountType} | #${
-                                  account.accountNumber || "N/A"
-                                }`}
+                                primary={
+                                  <>
+                                    <span>
+                                      {account.accountType} | #{account.accountNumber || "N/A"}
+                                    </span>
+                                    <Chip
+                                      size="small"
+                                      variant="outlined"
+                                      icon={
+                                        isPortfolioUpload ? (
+                                          <InsertDriveFileOutlinedIcon />
+                                        ) : (
+                                          <LinkRoundedIcon />
+                                        )
+                                      }
+                                      label={
+                                        isPortfolioUpload
+                                          ? "Portfolio Upload"
+                                          : "Brokerage Connection"
+                                      }
+                                      sx={{
+                                        height: 22,
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        color: isPortfolioUpload ? "#334155" : "#19436b",
+                                        backgroundColor: isPortfolioUpload ? "#f1f5f9" : "#eff6ff",
+                                        borderColor: isPortfolioUpload ? "#cbd5e1" : "#bfdbfe",
+                                        "& .MuiChip-icon": { color: "inherit", fontSize: 14 },
+                                      }}
+                                    />
+                                  </>
+                                }
                                 primaryTypographyProps={{
+                                  component: "div",
                                   variant: "body2",
                                   fontWeight: 700,
                                   fontSize: 14,
+                                  sx: {
+                                    display: "flex",
+                                    alignItems: "center",
+                                    flexWrap: "wrap",
+                                    columnGap: 1,
+                                    rowGap: 0.25,
+                                    mb: 0.3,
+                                    overflowWrap: "anywhere",
+                                  },
                                 }}
                                 secondaryTypographyProps={{ component: "div" }}
                                 sx={{ my: 0 }}
